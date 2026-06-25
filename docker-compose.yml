@@ -1,0 +1,146 @@
+services:
+  api-gateway:
+    build: ./api-gateway
+    container_name: e91-api-gateway
+    ports:
+      - "8000:8000"
+    environment:
+      ORCHESTRATOR_URL: http://orchestrator:8001
+      RESULT_STORE_URL: http://result-store:8011
+    depends_on:
+      - orchestrator
+      - result-store
+    networks:
+      - e91-network
+
+  orchestrator:
+    build: ./orchestrator
+    container_name: e91-orchestrator
+    ports:
+      - "8001:8001"
+    environment:
+      ENTANGLED_SOURCE_URL: http://entangled-source:8002
+      QUANTUM_CHANNEL_URL: http://quantum-channel:8003
+      ALICE_URL: http://alice-service:8005
+      BOB_URL: http://bob-service:8006
+      CLASSICAL_CHANNEL_URL: http://classical-channel:8008
+      SIFTING_BELL_TEST_URL: http://sifting-bell-test:8009
+      KEY_PROCESSING_URL: http://key-processing:8010
+      RESULT_STORE_URL: http://result-store:8011
+    depends_on:
+      - entangled-source
+      - quantum-channel
+      - alice-service
+      - bob-service
+      - classical-channel
+      - sifting-bell-test
+      - key-processing
+      - result-store
+    networks:
+      - e91-network
+
+  entangled-source:
+    build: ./entangled-source
+    container_name: e91-entangled-source
+    ports:
+      - "8002:8002"
+    networks:
+      - e91-network
+
+  quantum-channel:
+    build: ./quantum-channel
+    container_name: e91-quantum-channel
+    ports:
+      - "8003:8003"
+    environment:
+      NOISE_MODEL_URL: http://noise-model:8004
+      EVE_URL: http://eve-service:8007
+    depends_on:
+      - noise-model
+      - eve-service
+    networks:
+      - e91-network
+
+  noise-model:
+    build: ./noise-model
+    container_name: e91-noise-model
+    ports:
+      - "8004:8004"
+    networks:
+      - e91-network
+
+  alice-service:
+    build: ./alice-service
+    container_name: e91-alice-service
+    ports:
+      - "8005:8005"
+    networks:
+      - e91-network
+
+  bob-service:
+    build: ./bob-service
+    container_name: e91-bob-service
+    ports:
+      - "8006:8006"
+    networks:
+      - e91-network
+
+  eve-service:
+    build: ./eve-service
+    container_name: e91-eve-service
+    ports:
+      - "8007:8007"
+    networks:
+      - e91-network
+
+  classical-channel:
+    build: ./classical-channel
+    container_name: e91-classical-channel
+    ports:
+      - "8008:8008"
+    networks:
+      - e91-network
+
+  sifting-bell-test:
+    build: ./sifting-bell-test
+    container_name: e91-sifting-bell-test
+    ports:
+      - "8009:8009"
+    networks:
+      - e91-network
+
+  key-processing:
+    build: ./key-processing
+    container_name: e91-key-processing
+    ports:
+      - "8010:8010"
+    networks:
+      - e91-network
+
+  result-store:
+    build: ./result-store
+    container_name: e91-result-store
+    ports:
+      - "8011:8011"
+    networks:
+      - e91-network
+
+  monitoring:
+    build: ./monitoring
+    container_name: e91-monitoring
+    ports:
+      - "8012:8012"
+    networks:
+      - e91-network
+
+  shared:
+    build: ./shared
+    container_name: e91-shared
+    ports:
+      - "8013:8013"
+    networks:
+      - e91-network
+
+networks:
+  e91-network:
+    driver: bridge
