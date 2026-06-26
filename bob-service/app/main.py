@@ -9,7 +9,11 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name
 logger = logging.getLogger("bob-service")
 
 app = FastAPI(title="E91 Bob Service")
-BASIS_CHOICES = ["B0", "B1", "B2"]
+BASES = {
+    "B0": 45.0,
+    "B1": -45.0,
+    "K": 0.0,
+}
 
 
 class MeasureRequest(BaseModel):
@@ -17,9 +21,10 @@ class MeasureRequest(BaseModel):
     qubits: list[dict]
 
 
-def stable_bit(pair_id: str) -> int:
-    digest = hashlib.sha256(pair_id.encode("utf-8")).digest()
-    return digest[0] % 2
+def simulated_outcome(pair_id: str, basis: str) -> int:
+    """Placeholder measurement model, replaceable by a Qiskit-backed simulator later."""
+    digest = hashlib.sha256(f"bob:{pair_id}:{basis}".encode("utf-8")).digest()
+    return 1 if digest[0] % 2 == 0 else -1
 
 
 @app.get("/health")
@@ -32,9 +37,18 @@ def measure(request: MeasureRequest) -> dict:
     logger.info("Bob measuring %s symbolic qubits for %s", len(request.qubits), request.session_id)
     measurements = []
     for qubit in request.qubits:
-        basis = random.choice(BASIS_CHOICES)
-        bit = stable_bit(qubit["pair_id"])
+        basis = random.choice(list(BASES))
+        outcome = simulated_outcome(qubit["pair_id"], basis)
         if qubit.get("noise_applied") or qubit.get("eve_applied"):
-            bit = 1 - bit if random.random() < 0.15 else bit
-        measurements.append({"pair_id": qubit["pair_id"], "basis": basis, "bit": bit})
+            outcome = -outcome if random.random() < 0.15 else outcome
+        measurements.append(
+            {
+                "session_id": request.session_id,
+                "pair_id": qubit["pair_id"],
+                "party": "bob",
+                "basis": basis,
+                "basis_angle": BASES[basis],
+                "outcome": outcome,
+            }
+        )
     return {"session_id": request.session_id, "measurements": measurements}

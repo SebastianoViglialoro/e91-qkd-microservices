@@ -8,7 +8,8 @@ logger = logging.getLogger("classical-channel")
 
 app = FastAPI(title="E91 Classical Channel")
 
-KEY_BASIS_PAIRS = {("A0", "B0"), ("A1", "B1")}
+CHSH_BASIS_PAIRS = {("A0", "B0"), ("A0", "B1"), ("A1", "B0"), ("A1", "B1")}
+KEY_BASIS_PAIRS = {("K", "K")}
 
 
 class ReconcileRequest(BaseModel):
@@ -29,26 +30,40 @@ def reconcile(request: ReconcileRequest) -> dict:
     matched = []
     key_subset = []
     bell_subset = []
+    discarded_subset = []
 
     for alice in request.alice_measurements:
         bob = bob_by_pair.get(alice["pair_id"])
         if not bob:
+            discarded_subset.append({"pair_id": alice["pair_id"], "reason": "missing_bob_measurement"})
             continue
         item = {
+            "session_id": request.session_id,
             "pair_id": alice["pair_id"],
             "alice_basis": alice["basis"],
+            "alice_basis_angle": alice["basis_angle"],
+            "alice_outcome": alice["outcome"],
             "bob_basis": bob["basis"],
-            "alice_bit": alice["bit"],
-            "bob_bit": bob["bit"],
+            "bob_basis_angle": bob["basis_angle"],
+            "bob_outcome": bob["outcome"],
         }
         matched.append(item)
-        if (alice["basis"], bob["basis"]) in KEY_BASIS_PAIRS:
+        basis_pair = (alice["basis"], bob["basis"])
+        if basis_pair in CHSH_BASIS_PAIRS:
+            bell_subset.append(item)
+        elif basis_pair in KEY_BASIS_PAIRS:
             key_subset.append(item)
         else:
-            bell_subset.append(item)
+            discarded_subset.append({**item, "reason": "unsupported_basis_pair"})
 
     public_bases = [
-        {"pair_id": item["pair_id"], "alice_basis": item["alice_basis"], "bob_basis": item["bob_basis"]}
+        {
+            "pair_id": item["pair_id"],
+            "alice_basis": item["alice_basis"],
+            "alice_basis_angle": item["alice_basis_angle"],
+            "bob_basis": item["bob_basis"],
+            "bob_basis_angle": item["bob_basis_angle"],
+        }
         for item in matched
     ]
     return {
@@ -56,5 +71,7 @@ def reconcile(request: ReconcileRequest) -> dict:
         "matched_measurements": matched,
         "public_bases": public_bases,
         "key_subset": key_subset,
+        "bell_subset": bell_subset,
         "bell_test_subset": bell_subset,
+        "discarded_subset": discarded_subset,
     }

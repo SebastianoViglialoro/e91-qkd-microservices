@@ -23,15 +23,18 @@ def health() -> dict[str, str]:
 @app.post("/generate-key")
 def generate_key(request: GenerateKeyRequest) -> dict:
     logger.info("Generating symbolic key for %s", request.session_id)
-    key_subset = request.reconciled.get("key_subset", [])
-    raw_bits = [str(item["alice_bit"]) for item in key_subset]
+    raw_bits = [str(bit) for bit in request.evaluation.get("key_bits", [])]
     raw_key_length = len(request.reconciled.get("matched_measurements", []))
     sifted_key_length = len(raw_bits)
 
-    if request.evaluation.get("security_status") == "secure":
+    if request.evaluation.get("security_status") == "secure" and raw_bits:
         final_key = "".join(raw_bits[: min(64, len(raw_bits))])
         final_key_length = len(final_key)
         key_status = "generated"
+    elif request.evaluation.get("security_status") == "secure":
+        final_key = ""
+        final_key_length = 0
+        key_status = "not_generated_no_key_subset"
     else:
         final_key = ""
         final_key_length = 0

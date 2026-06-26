@@ -9,7 +9,11 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name
 logger = logging.getLogger("alice-service")
 
 app = FastAPI(title="E91 Alice Service")
-BASIS_CHOICES = ["A0", "A1", "A2"]
+BASES = {
+    "A0": 0.0,
+    "A1": 90.0,
+    "K": 0.0,
+}
 
 
 class MeasureRequest(BaseModel):
@@ -17,9 +21,10 @@ class MeasureRequest(BaseModel):
     qubits: list[dict]
 
 
-def stable_bit(pair_id: str) -> int:
-    digest = hashlib.sha256(pair_id.encode("utf-8")).digest()
-    return digest[0] % 2
+def simulated_outcome(pair_id: str, basis: str) -> int:
+    """Placeholder measurement model, replaceable by a Qiskit-backed simulator later."""
+    digest = hashlib.sha256(f"alice:{pair_id}:{basis}".encode("utf-8")).digest()
+    return 1 if digest[0] % 2 == 0 else -1
 
 
 @app.get("/health")
@@ -32,6 +37,15 @@ def measure(request: MeasureRequest) -> dict:
     logger.info("Alice measuring %s symbolic qubits for %s", len(request.qubits), request.session_id)
     measurements = []
     for qubit in request.qubits:
-        basis = random.choice(BASIS_CHOICES)
-        measurements.append({"pair_id": qubit["pair_id"], "basis": basis, "bit": stable_bit(qubit["pair_id"])})
+        basis = random.choice(list(BASES))
+        measurements.append(
+            {
+                "session_id": request.session_id,
+                "pair_id": qubit["pair_id"],
+                "party": "alice",
+                "basis": basis,
+                "basis_angle": BASES[basis],
+                "outcome": simulated_outcome(qubit["pair_id"], basis),
+            }
+        )
     return {"session_id": request.session_id, "measurements": measurements}
