@@ -1,0 +1,15 @@
+scenario,shots,noise_level,eve_attack_probability,abs_chsh,qber,key_subset_size,bell_subset_size,final_key_length,security_status,key_status,noise_applied_count,eve_applied_count,session_id
+baseline,10000,0.0,0.0,2.8374,0.0,1116,4422,64,secure,generated,0,0,b03ec0a6-50d5-4044-884a-35e83bed1584
+noise_0.00,10000,0.0,0.0,2.7637,0.0,1087,4428,64,secure,generated,0,0,3d99010a-eed4-4f74-96f1-2b93ba0a63cb
+noise_0.02,10000,0.02,0.0,2.8212,0.0132,1060,4504,64,secure,generated,169,0,25307e77-d68e-43eb-8acc-0b41abaff76e
+noise_0.05,10000,0.05,0.0,2.5471,0.0417,1104,4417,64,secure,generated,470,0,0fae1250-ffaa-4246-a9b2-5c851851516c
+noise_0.10,10000,0.1,0.0,2.2842,0.1041,1133,4497,0,degraded,discarded_degraded,987,0,38af59cd-33e9-4f65-aa71-d0565e2f5a48
+noise_0.20,10000,0.2,0.0,1.6538,0.1869,1102,4502,0,insecure,discarded,1993,0,71c631b3-c2bd-4b65-acbb-cadd791d504f
+eve_0.00,10000,0.0,0.0,2.8397,0.0,1068,4466,64,secure,generated,0,0,5f9040b3-a398-44d4-aa15-75481b10d487
+eve_0.02,10000,0.0,0.02,2.814,0.0099,1113,4460,64,secure,generated,0,171,08ec834f-707d-4d63-a1f3-b7c3cdd074e7
+eve_0.05,10000,0.0,0.05,2.6775,0.0195,1127,4435,64,secure,generated,0,495,8217dfad-45fc-4d2c-8e82-f1b1f5f3cb0c
+eve_0.10,10000,0.0,0.1,2.5378,0.0503,1133,4481,64,secure,generated,0,990,4bd3031e-89a4-457f-8fa2-06548ee020f9
+eve_0.20,10000,0.0,0.2,2.1926,0.095,1074,4442,0,degraded,discarded_degraded,0,1997,255a025b-51bd-4e09-bdbb-c5c2d6c4493e
+combined_n0.02_e0.02,10000,0.02,0.02,2.6648,0.0324,1111,4507,64,secure,generated,195,209,3cf9ecd9-218e-4623-8297-ddf93e7ad66e
+combined_n0.05_e0.05,10000,0.05,0.05,2.3687,0.0785,1121,4403,0,degraded,discarded_degraded,531,531,7e27742b-5ec5-4024-8150-3600dc248f7c
+combined_n0.10_e0.10,10000,0.1,0.1,2.0399,0.1292,1076,4513,0,degraded,discarded_degraded,1031,1011,98595d04-8abd-487f-95f8-ead531eb26fc

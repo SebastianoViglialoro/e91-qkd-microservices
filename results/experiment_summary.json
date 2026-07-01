@@ -1,0 +1,258 @@
+[
+  {
+    "scenario": "baseline",
+    "runs": 10,
+    "shots": 10000,
+    "noise_level": 0.0,
+    "eve_attack_probability": 0.0,
+    "abs_chsh_mean": 2.8208,
+    "abs_chsh_stddev": 0.05230162521375414,
+    "qber_mean": 0.0,
+    "qber_stddev": 0.0,
+    "key_subset_size_mean": 1110.6,
+    "security_status_distribution": {
+      "secure": 10
+    },
+    "key_status_distribution": {
+      "generated": 10
+    }
+  },
+  {
+    "scenario": "noise_0.00",
+    "runs": 10,
+    "shots": 10000,
+    "noise_level": 0.0,
+    "eve_attack_probability": 0.0,
+    "abs_chsh_mean": 2.84954,
+    "abs_chsh_stddev": 0.04700369252634426,
+    "qber_mean": 0.0,
+    "qber_stddev": 0.0,
+    "key_subset_size_mean": 1111.9,
+    "security_status_distribution": {
+      "secure": 10
+    },
+    "key_status_distribution": {
+      "generated": 10
+    }
+  },
+  {
+    "scenario": "noise_0.02",
+    "runs": 10,
+    "shots": 10000,
+    "noise_level": 0.02,
+    "eve_attack_probability": 0.0,
+    "abs_chsh_mean": 2.7107099999999997,
+    "abs_chsh_stddev": 0.039427386139304,
+    "qber_mean": 0.019360000000000002,
+    "qber_stddev": 0.0034157153147051215,
+    "key_subset_size_mean": 1110.7,
+    "security_status_distribution": {
+      "secure": 10
+    },
+    "key_status_distribution": {
+      "generated": 10
+    }
+  },
+  {
+    "scenario": "noise_0.05",
+    "runs": 10,
+    "shots": 10000,
+    "noise_level": 0.05,
+    "eve_attack_probability": 0.0,
+    "abs_chsh_mean": 2.541620000000001,
+    "abs_chsh_stddev": 0.04975236007802378,
+    "qber_mean": 0.04935,
+    "qber_stddev": 0.006580822305929725,
+    "key_subset_size_mean": 1102.9,
+    "security_status_distribution": {
+      "secure": 10
+    },
+    "key_status_distribution": {
+      "generated": 10
+    }
+  },
+  {
+    "scenario": "noise_0.10",
+    "runs": 10,
+    "shots": 10000,
+    "noise_level": 0.1,
+    "eve_attack_probability": 0.0,
+    "abs_chsh_mean": 2.22213,
+    "abs_chsh_stddev": 0.041972240826527236,
+    "qber_mean": 0.09928000000000001,
+    "qber_stddev": 0.007286029249338919,
+    "key_subset_size_mean": 1124.6,
+    "security_status_distribution": {
+      "degraded": 10
+    },
+    "key_status_distribution": {
+      "discarded_degraded": 10
+    }
+  },
+  {
+    "scenario": "noise_0.20",
+    "runs": 10,
+    "shots": 10000,
+    "noise_level": 0.2,
+    "eve_attack_probability": 0.0,
+    "abs_chsh_mean": 1.70264,
+    "abs_chsh_stddev": 0.043682699346792,
+    "qber_mean": 0.19714000000000004,
+    "qber_stddev": 0.00899990123402597,
+    "key_subset_size_mean": 1105.9,
+    "security_status_distribution": {
+      "insecure": 10
+    },
+    "key_status_distribution": {
+      "discarded": 10
+    }
+  },
+  {
+    "scenario": "eve_0.00",
+    "runs": 10,
+    "shots": 10000,
+    "noise_level": 0.0,
+    "eve_attack_probability": 0.0,
+    "abs_chsh_mean": 2.82012,
+    "abs_chsh_stddev": 0.0416559132790425,
+    "qber_mean": 0.0,
+    "qber_stddev": 0.0,
+    "key_subset_size_mean": 1110.2,
+    "security_status_distribution": {
+      "secure": 10
+    },
+    "key_status_distribution": {
+      "generated": 10
+    }
+  },
+  {
+    "scenario": "eve_0.02",
+    "runs": 10,
+    "shots": 10000,
+    "noise_level": 0.0,
+    "eve_attack_probability": 0.02,
+    "abs_chsh_mean": 2.77175,
+    "abs_chsh_stddev": 0.06369193652086412,
+    "qber_mean": 0.009289999999999998,
+    "qber_stddev": 0.002601473941185394,
+    "key_subset_size_mean": 1111.5,
+    "security_status_distribution": {
+      "secure": 10
+    },
+    "key_status_distribution": {
+      "generated": 10
+    }
+  },
+  {
+    "scenario": "eve_0.05",
+    "runs": 10,
+    "shots": 10000,
+    "noise_level": 0.0,
+    "eve_attack_probability": 0.05,
+    "abs_chsh_mean": 2.69212,
+    "abs_chsh_stddev": 0.052698699119512304,
+    "qber_mean": 0.0261,
+    "qber_stddev": 0.0033416562759605705,
+    "key_subset_size_mean": 1113.9,
+    "security_status_distribution": {
+      "secure": 10
+    },
+    "key_status_distribution": {
+      "generated": 10
+    }
+  },
+  {
+    "scenario": "eve_0.10",
+    "runs": 10,
+    "shots": 10000,
+    "noise_level": 0.0,
+    "eve_attack_probability": 0.1,
+    "abs_chsh_mean": 2.5332300000000005,
+    "abs_chsh_stddev": 0.06543149173839093,
+    "qber_mean": 0.05197,
+    "qber_stddev": 0.005079818456948591,
+    "key_subset_size_mean": 1118.5,
+    "security_status_distribution": {
+      "secure": 10
+    },
+    "key_status_distribution": {
+      "generated": 10
+    }
+  },
+  {
+    "scenario": "eve_0.20",
+    "runs": 10,
+    "shots": 10000,
+    "noise_level": 0.0,
+    "eve_attack_probability": 0.2,
+    "abs_chsh_mean": 2.25049,
+    "abs_chsh_stddev": 0.030378810231987595,
+    "qber_mean": 0.10590999999999999,
+    "qber_stddev": 0.005322165390557158,
+    "key_subset_size_mean": 1105.5,
+    "security_status_distribution": {
+      "degraded": 10
+    },
+    "key_status_distribution": {
+      "discarded_degraded": 10
+    }
+  },
+  {
+    "scenario": "combined_n0.02_e0.02",
+    "runs": 10,
+    "shots": 10000,
+    "noise_level": 0.02,
+    "eve_attack_probability": 0.02,
+    "abs_chsh_mean": 2.6485499999999997,
+    "abs_chsh_stddev": 0.04367354271562278,
+    "qber_mean": 0.030359999999999998,
+    "qber_stddev": 0.00798876989557494,
+    "key_subset_size_mean": 1110.4,
+    "security_status_distribution": {
+      "secure": 10
+    },
+    "key_status_distribution": {
+      "generated": 10
+    }
+  },
+  {
+    "scenario": "combined_n0.05_e0.05",
+    "runs": 10,
+    "shots": 10000,
+    "noise_level": 0.05,
+    "eve_attack_probability": 0.05,
+    "abs_chsh_mean": 2.42185,
+    "abs_chsh_stddev": 0.043123034576790904,
+    "qber_mean": 0.07176,
+    "qber_stddev": 0.009905464260811918,
+    "key_subset_size_mean": 1118.5,
+    "security_status_distribution": {
+      "degraded": 3,
+      "secure": 7
+    },
+    "key_status_distribution": {
+      "discarded_degraded": 3,
+      "generated": 7
+    }
+  },
+  {
+    "scenario": "combined_n0.10_e0.10",
+    "runs": 10,
+    "shots": 10000,
+    "noise_level": 0.1,
+    "eve_attack_probability": 0.1,
+    "abs_chsh_mean": 2.0149099999999995,
+    "abs_chsh_stddev": 0.028083187932363474,
+    "qber_mean": 0.13960999999999998,
+    "qber_stddev": 0.012184548503010779,
+    "key_subset_size_mean": 1096.5,
+    "security_status_distribution": {
+      "degraded": 5,
+      "insecure": 5
+    },
+    "key_status_distribution": {
+      "discarded": 5,
+      "discarded_degraded": 5
+    }
+  }
+]

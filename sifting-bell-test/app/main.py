@@ -24,7 +24,9 @@ CHSH_TERMS = {
 }
 CLASSICAL_BOUND = 2.0
 TSIRELSON_BOUND = 2.8284271247461903
-DEGRADED_CHSH_BOUND = 2.3
+SECURE_CHSH_THRESHOLD = 2.4
+SECURE_QBER_THRESHOLD = 0.08
+INSECURE_QBER_THRESHOLD = 0.15
 OUTCOMES = (-1, 1)
 
 
@@ -42,6 +44,18 @@ def sample_singlet_outcomes(alice_angle_degrees: float, bob_angle_degrees: float
     same_outcome = random.random() < same_probability
     bob_outcome = alice_outcome if same_outcome else -alice_outcome
     return alice_outcome, bob_outcome
+
+
+def classify_security(abs_chsh: float, qber: float) -> tuple[str, str]:
+    if abs_chsh <= CLASSICAL_BOUND:
+        return "insecure", "Bell violation lost"
+    if qber > INSECURE_QBER_THRESHOLD:
+        return "insecure", "QBER above insecure threshold"
+    if abs_chsh < SECURE_CHSH_THRESHOLD:
+        return "degraded", "Bell violation close to classical bound"
+    if qber > SECURE_QBER_THRESHOLD:
+        return "degraded", "QBER above degraded threshold"
+    return "secure", "Bell violation preserved and QBER below secure threshold"
 
 
 def correlate_with_singlet_sampler(items: list[dict]) -> list[dict]:
@@ -141,12 +155,7 @@ def evaluate(request: EvaluateRequest) -> dict:
     chsh = round(chsh, 4)
     abs_chsh = abs(chsh)
     bell_violation = abs_chsh > CLASSICAL_BOUND
-    if abs_chsh <= CLASSICAL_BOUND or qber >= 0.25:
-        security_status = "insecure"
-    elif bell_violation and (qber > 0.11 or abs_chsh <= DEGRADED_CHSH_BOUND):
-        security_status = "degraded"
-    else:
-        security_status = "secure"
+    security_status, classification_reason = classify_security(abs_chsh, qber)
 
     return {
         "session_id": request.session_id,
@@ -170,6 +179,7 @@ def evaluate(request: EvaluateRequest) -> dict:
         "key_bits": [record["alice_bit"] for record in key_records if not record["error"]],
         "key_records": key_records,
         "security_status": security_status,
+        "classification_reason": classification_reason,
         "key_subset_size": len(correlated_key_subset),
         "bell_subset_size": len(correlated_bell_subset),
         "discarded_subset_size": len(request.reconciled.get("discarded_subset", [])),

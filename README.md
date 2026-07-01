@@ -53,6 +53,40 @@ curl -X POST http://localhost:8000/simulations \
   -d '{"shots": 1000, "enable_noise": true, "noise_level": 0.05, "enable_eve": true}'
 ```
 
+## Esperimenti automatici
+
+Con i microservizi avviati, puoi eseguire una raccolta automatica di risultati:
+
+```bash
+python scripts/run_experiments.py
+```
+
+Lo script chiama l'API Gateway, stampa una tabella in console e salva:
+
+- `results/experiment_runs.csv`, con ogni run singola
+- `results/experiment_summary.csv`, con medie, deviazioni standard e distribuzione degli status
+- `results/experiment_summary.json`, con lo stesso summary in formato JSON
+
+Per impostare il numero di ripetizioni indipendenti per scenario:
+
+```bash
+python scripts/run_experiments.py --repeats 10
+```
+
+Per usare una porta diversa da `8000`:
+
+```bash
+python scripts/run_experiments.py --gateway-url http://localhost:18000 --repeats 10
+```
+
+Per generare i grafici dai risultati aggregati:
+
+```bash
+python scripts/plot_experiment_results.py
+```
+
+I PNG vengono salvati in `results/plots/`.
+
 ## Flusso baseline
 
 `api-gateway` inoltra la richiesta all'`orchestrator`, che coordina:
@@ -178,11 +212,11 @@ Strategia simbolica attuale: dopo aver generato gli outcome ideali del singolett
 
 Classificazione:
 
-- `secure`: `abs_chsh > 2.0` e `qber <= 0.11`
-- `degraded`: `abs_chsh > 2.0` e `qber > 0.11`, oppure `abs_chsh` vicino al bound classico
-- `insecure`: `abs_chsh <= 2.0` oppure `qber >= 0.25`
+- `secure`: `abs_chsh >= 2.4` e `qber <= 0.08`
+- `degraded`: `abs_chsh > 2.0` e `abs_chsh < 2.4`, oppure `qber > 0.08` e `qber <= 0.15`
+- `insecure`: `abs_chsh <= 2.0` oppure `qber > 0.15`
 
-In caso di conflitto, prevale `insecure`.
+In caso di conflitto, prevale `insecure`; altrimenti prevale `degraded` su `secure`. Il risultato include `classification_reason`, una stringa breve che spiega la classificazione.
 
 ## Note implementative
 

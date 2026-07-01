@@ -27,15 +27,13 @@ def generate_key(request: GenerateKeyRequest) -> dict:
     raw_key_length = len(request.reconciled.get("matched_measurements", []))
     sifted_key_length = len(raw_bits)
 
-    if request.evaluation.get("security_status") == "secure" and raw_bits:
+    security_status = request.evaluation.get("security_status")
+
+    if security_status == "secure":
         final_key = "".join(raw_bits[: min(64, len(raw_bits))])
         final_key_length = len(final_key)
         key_status = "generated"
-    elif request.evaluation.get("security_status") == "secure":
-        final_key = ""
-        final_key_length = 0
-        key_status = "not_generated_no_key_subset"
-    elif request.evaluation.get("security_status") == "degraded":
+    elif security_status == "degraded":
         final_key = ""
         final_key_length = 0
         key_status = "discarded_degraded"
