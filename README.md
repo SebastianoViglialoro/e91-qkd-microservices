@@ -136,7 +136,8 @@ Il Noise Model e' ancora simbolico e controllato. La richiesta di simulazione ac
   "shots": 10000,
   "enable_noise": true,
   "noise_level": 0.05,
-  "enable_eve": false
+  "enable_eve": false,
+  "eve_attack_probability": 0.0
 }
 ```
 
@@ -148,10 +149,37 @@ Il `quantum-channel` allega quindi `noise_applied=true` ai pair disturbati. Alic
 
 Strategia simbolica attuale: dopo aver generato gli outcome ideali del singoletto, se un round ha `noise_applied=true`, `sifting-bell-test` applica un flip all'outcome di Bob. Questo riduce progressivamente `abs_chsh` sui round Bell e aumenta il QBER sui round `K/K`.
 
+## Eve Attack
+
+Eve e' distinta dal Noise Model:
+
+- `noise-model` rappresenta rumore fisico non intenzionale.
+- `eve-service` rappresenta un attacco intenzionale sul `quantum-channel`.
+
+La richiesta di simulazione puo' abilitare Eve:
+
+```json
+{
+  "shots": 10000,
+  "enable_noise": false,
+  "noise_level": 0.0,
+  "enable_eve": true,
+  "eve_attack_probability": 0.10
+}
+```
+
+`eve_attack_probability` e' un valore tra `0.0` e `1.0`. Il parametro viene propagato da `api-gateway` a `orchestrator`, poi a `quantum-channel`, che chiama il servizio `eve-service`.
+
+Il servizio `eve-service` non conosce basi, CHSH o QBER. Il suo ruolo e' marcare alcune coppie come attaccate: per ogni `pair_id`, con probabilita' `eve_attack_probability`, restituisce quel `pair_id` in `attacked_pair_ids`.
+
+Il `quantum-channel` allega `eve_applied=true` ai pair attaccati. Alice e Bob preservano questo flag nelle misure, il `classical-channel` lo mantiene nei subset riconciliati, e `sifting-bell-test` usa il flag per degradare le correlazioni.
+
+Strategia simbolica attuale: dopo aver generato gli outcome ideali del singoletto, se un round ha `eve_applied=true`, `sifting-bell-test` randomizza l'outcome di Bob. Questo rappresenta un attacco simbolico tipo intercettazione/perturbazione del canale quantistico, rompe la correlazione Alice/Bob, riduce `abs_chsh` e aumenta il QBER. Non e' ancora un modello fisico completo.
+
 Classificazione:
 
 - `secure`: `abs_chsh > 2.0` e `qber <= 0.11`
-- `degraded`: `abs_chsh > 2.0` e `qber > 0.11`
+- `degraded`: `abs_chsh > 2.0` e `qber > 0.11`, oppure `abs_chsh` vicino al bound classico
 - `insecure`: `abs_chsh <= 2.0` oppure `qber >= 0.25`
 
 In caso di conflitto, prevale `insecure`.
@@ -163,6 +191,7 @@ In caso di conflitto, prevale `insecure`.
 - Nessun Kafka o message broker.
 - Misure iniziali, Noise Model e attacco Eve sono placeholder simbolici.
 - Il Noise Model marca coppie disturbate, mentre il Bell/QBER service usa quei flag per degradare correlazioni e chiave.
+- Eve marca coppie attaccate, mentre il Bell/QBER service usa quei flag per rompere simbolicamente le correlazioni.
 - Il Bell test usa un sampler classico delle correlazioni ideali E91, non Qiskit.
 - CHSH e QBER sono calcolati dai risultati simulati usati nel post-processing.
 - Non e' ancora un modello fisico completo.

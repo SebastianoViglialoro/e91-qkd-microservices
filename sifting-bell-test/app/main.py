@@ -24,6 +24,7 @@ CHSH_TERMS = {
 }
 CLASSICAL_BOUND = 2.0
 TSIRELSON_BOUND = 2.8284271247461903
+DEGRADED_CHSH_BOUND = 2.3
 OUTCOMES = (-1, 1)
 
 
@@ -55,6 +56,12 @@ def correlate_with_singlet_sampler(items: list[dict]) -> list[dict]:
         # physical effect by flipping Bob's sampled outcome for those rounds.
         if item.get("noise_applied", False):
             bob_outcome = -bob_outcome
+        # Symbolic Eve strategy:
+        # eve-service only marks attacked pair_ids; here Eve represents an
+        # intentional intercept/perturb attack by randomizing Bob's outcome,
+        # breaking the Alice/Bob singlet correlation for those rounds.
+        if item.get("eve_applied", False):
+            bob_outcome = random.choice(OUTCOMES)
         correlated.append(
             {
                 **item,
@@ -87,6 +94,14 @@ def evaluate(request: EvaluateRequest) -> dict:
     ]
     noise_level = max(noise_levels, default=0.0)
     noise_enabled = noise_level > 0.0
+    eve_applied_count = sum(1 for item in matched_measurements if item.get("eve_applied", False))
+    eve_attack_probabilities = [
+        item.get("eve_attack_probability", 0.0)
+        for item in matched_measurements
+        if item.get("eve_attack_probability", 0.0) > 0.0
+    ]
+    eve_attack_probability = max(eve_attack_probabilities, default=0.0)
+    eve_enabled = eve_attack_probability > 0.0
 
     compared_bits = len(correlated_key_subset)
     key_records = []
@@ -128,7 +143,7 @@ def evaluate(request: EvaluateRequest) -> dict:
     bell_violation = abs_chsh > CLASSICAL_BOUND
     if abs_chsh <= CLASSICAL_BOUND or qber >= 0.25:
         security_status = "insecure"
-    elif bell_violation and qber > 0.11:
+    elif bell_violation and (qber > 0.11 or abs_chsh <= DEGRADED_CHSH_BOUND):
         security_status = "degraded"
     else:
         security_status = "secure"
@@ -147,6 +162,9 @@ def evaluate(request: EvaluateRequest) -> dict:
         "noise_enabled": noise_enabled,
         "noise_level": noise_level,
         "noise_applied_count": noise_applied_count,
+        "eve_enabled": eve_enabled,
+        "eve_attack_probability": eve_attack_probability,
+        "eve_applied_count": eve_applied_count,
         "correlations": correlations,
         "correlation_model": "classical_singlet_sampler",
         "key_bits": [record["alice_bit"] for record in key_records if not record["error"]],

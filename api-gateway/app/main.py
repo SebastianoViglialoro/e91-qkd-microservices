@@ -19,6 +19,7 @@ class SimulationRequest(BaseModel):
     enable_noise: bool = False
     noise_level: float = Field(default=0.0, ge=0.0, le=1.0)
     enable_eve: bool = False
+    eve_attack_probability: float = Field(default=0.0, ge=0.0, le=1.0)
 
 
 @app.get("/health")

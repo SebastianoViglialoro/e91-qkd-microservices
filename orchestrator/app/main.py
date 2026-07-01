@@ -26,6 +26,7 @@ class RunSessionRequest(BaseModel):
     enable_noise: bool = False
     noise_level: float = Field(default=0.0, ge=0.0, le=1.0)
     enable_eve: bool = False
+    eve_attack_probability: float = Field(default=0.0, ge=0.0, le=1.0)
 
 
 async def post_json(client: httpx.AsyncClient, url: str, payload: dict) -> dict:
@@ -61,6 +62,7 @@ async def run_session(request: RunSessionRequest) -> dict:
                 "enable_noise": request.enable_noise,
                 "noise_level": request.noise_level,
                 "enable_eve": request.enable_eve,
+                "eve_attack_probability": request.eve_attack_probability,
             },
         )
         alice = await post_json(
@@ -103,6 +105,8 @@ async def run_session(request: RunSessionRequest) -> dict:
                 "noise_level": request.noise_level,
                 "noise_applied_count": transmitted.get("noise_applied_count", 0),
                 "eve_enabled": request.enable_eve,
+                "eve_attack_probability": request.eve_attack_probability,
+                "eve_applied_count": transmitted.get("eve_applied_count", 0),
             },
             "sifting_bell_test": evaluation,
             "key": key,

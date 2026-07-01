@@ -39,8 +39,6 @@ def measure(request: MeasureRequest) -> dict:
     for qubit in request.qubits:
         basis = random.choice(list(BASES))
         outcome = simulated_outcome(qubit["pair_id"], basis)
-        if qubit.get("eve_applied"):
-            outcome = -outcome if random.random() < 0.15 else outcome
         measurements.append(
             {
                 "session_id": request.session_id,
@@ -51,6 +49,8 @@ def measure(request: MeasureRequest) -> dict:
                 "outcome": outcome,
                 "noise_applied": qubit.get("noise_applied", False),
                 "noise_level": qubit.get("noise_level", 0.0),
+                "eve_applied": qubit.get("eve_applied", False),
+                "eve_attack_probability": qubit.get("eve_attack_probability", 0.0),
             }
         )
     return {"session_id": request.session_id, "measurements": measurements}

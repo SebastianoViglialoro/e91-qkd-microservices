@@ -20,6 +20,7 @@ class Pair(BaseModel):
     noise_applied: bool = False
     noise_level: float = 0.0
     eve_applied: bool = False
+    eve_attack_probability: float = 0.0
 
 
 class TransmitRequest(BaseModel):
@@ -28,6 +29,7 @@ class TransmitRequest(BaseModel):
     enable_noise: bool = False
     noise_level: float = Field(default=0.0, ge=0.0, le=1.0)
     enable_eve: bool = False
+    eve_attack_probability: float = Field(default=0.0, ge=0.0, le=1.0)
 
 
 @app.get("/health")
@@ -40,7 +42,9 @@ async def transmit(request: TransmitRequest) -> dict:
     logger.info("Transmitting %s pairs for %s", len(request.pairs), request.session_id)
     pairs = [pair.model_dump() for pair in request.pairs]
     disturbed_pair_ids: list[str] = []
+    attacked_pair_ids: list[str] = []
     noise_applied_count = 0
+    eve_applied_count = 0
 
     async with httpx.AsyncClient(timeout=30.0) as client:
         if request.enable_noise:
@@ -66,11 +70,26 @@ async def transmit(request: TransmitRequest) -> dict:
         if request.enable_eve:
             response = await client.post(
                 f"{EVE_URL}/attack",
-                json={"session_id": request.session_id, "pairs": pairs, "attack_probability": 0.05},
+                json={
+                    "session_id": request.session_id,
+                    "pairs": pairs,
+                    "eve_attack_probability": request.eve_attack_probability,
+                },
             )
             if response.status_code >= 400:
                 raise HTTPException(status_code=502, detail=response.text)
-            pairs = response.json()["pairs"]
+            eve_result = response.json()
+            attacked_pair_ids = eve_result["attacked_pair_ids"]
+            attacked_pair_id_set = set(attacked_pair_ids)
+            eve_applied_count = eve_result["eve_applied_count"]
+            pairs = [
+                {
+                    **pair,
+                    "eve_applied": pair["pair_id"] in attacked_pair_id_set,
+                    "eve_attack_probability": request.eve_attack_probability,
+                }
+                for pair in pairs
+            ]
 
     alice_qubits = [{"pair_id": pair["pair_id"], "owner": "alice", **pair} for pair in pairs]
     bob_qubits = [{"pair_id": pair["pair_id"], "owner": "bob", **pair} for pair in pairs]
@@ -82,4 +101,7 @@ async def transmit(request: TransmitRequest) -> dict:
         "noise_level": request.noise_level,
         "noise_applied_count": noise_applied_count,
         "disturbed_pair_ids": disturbed_pair_ids,
+        "eve_attack_probability": request.eve_attack_probability,
+        "eve_applied_count": eve_applied_count,
+        "attacked_pair_ids": attacked_pair_ids,
     }
