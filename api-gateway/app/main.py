@@ -17,6 +17,7 @@ RESULT_STORE_URL = os.getenv("RESULT_STORE_URL", "http://result-store:8011")
 class SimulationRequest(BaseModel):
     shots: int = Field(default=1000, gt=0)
     enable_noise: bool = False
+    noise_level: float = Field(default=0.0, ge=0.0, le=1.0)
     enable_eve: bool = False
 
 

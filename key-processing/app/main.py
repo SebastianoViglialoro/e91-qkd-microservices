@@ -35,6 +35,10 @@ def generate_key(request: GenerateKeyRequest) -> dict:
         final_key = ""
         final_key_length = 0
         key_status = "not_generated_no_key_subset"
+    elif request.evaluation.get("security_status") == "degraded":
+        final_key = ""
+        final_key_length = 0
+        key_status = "discarded_degraded"
     else:
         final_key = ""
         final_key_length = 0

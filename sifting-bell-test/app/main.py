@@ -22,6 +22,8 @@ CHSH_TERMS = {
     ("A1", "B0"): 1,
     ("A1", "B1"): -1,
 }
+CLASSICAL_BOUND = 2.0
+TSIRELSON_BOUND = 2.8284271247461903
 OUTCOMES = (-1, 1)
 
 
@@ -48,6 +50,11 @@ def correlate_with_singlet_sampler(items: list[dict]) -> list[dict]:
             item["alice_basis_angle"],
             item["bob_basis_angle"],
         )
+        # Symbolic controlled-noise strategy:
+        # noise-model only marks disturbed pair_ids; this service applies the
+        # physical effect by flipping Bob's sampled outcome for those rounds.
+        if item.get("noise_applied", False):
+            bob_outcome = -bob_outcome
         correlated.append(
             {
                 **item,
@@ -71,6 +78,15 @@ def evaluate(request: EvaluateRequest) -> dict:
     bell_subset = request.reconciled.get("bell_subset", request.reconciled.get("bell_test_subset", []))
     correlated_bell_subset = correlate_with_singlet_sampler(bell_subset)
     correlated_key_subset = correlate_with_singlet_sampler(key_subset)
+    matched_measurements = request.reconciled.get("matched_measurements", [])
+    noise_applied_count = sum(1 for item in matched_measurements if item.get("noise_applied", False))
+    noise_levels = [
+        item.get("noise_level", 0.0)
+        for item in matched_measurements
+        if item.get("noise_level", 0.0) > 0.0
+    ]
+    noise_level = max(noise_levels, default=0.0)
+    noise_enabled = noise_level > 0.0
 
     compared_bits = len(correlated_key_subset)
     key_records = []
@@ -108,14 +124,29 @@ def evaluate(request: EvaluateRequest) -> dict:
 
     # Future integration point: Qiskit Bell/CHSH verification.
     chsh = round(chsh, 4)
-    security_status = "secure" if abs(chsh) > 2.0 and qber < 0.11 else "insecure"
+    abs_chsh = abs(chsh)
+    bell_violation = abs_chsh > CLASSICAL_BOUND
+    if abs_chsh <= CLASSICAL_BOUND or qber >= 0.25:
+        security_status = "insecure"
+    elif bell_violation and qber > 0.11:
+        security_status = "degraded"
+    else:
+        security_status = "secure"
 
     return {
         "session_id": request.session_id,
         "chsh": chsh,
+        "abs_chsh": round(abs_chsh, 4),
+        "classical_bound": CLASSICAL_BOUND,
+        "tsirelson_bound": TSIRELSON_BOUND,
+        "bell_violation": bell_violation,
+        "finite_sample_estimate": True,
         "qber": round(qber, 4),
         "error_count": error_count,
         "compared_bits": compared_bits,
+        "noise_enabled": noise_enabled,
+        "noise_level": noise_level,
+        "noise_applied_count": noise_applied_count,
         "correlations": correlations,
         "correlation_model": "classical_singlet_sampler",
         "key_bits": [record["alice_bit"] for record in key_records if not record["error"]],

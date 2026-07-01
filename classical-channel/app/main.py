@@ -46,6 +46,8 @@ def reconcile(request: ReconcileRequest) -> dict:
             "bob_basis": bob["basis"],
             "bob_basis_angle": bob["basis_angle"],
             "bob_outcome": bob["outcome"],
+            "noise_applied": alice.get("noise_applied", False) or bob.get("noise_applied", False),
+            "noise_level": max(alice.get("noise_level", 0.0), bob.get("noise_level", 0.0)),
         }
         matched.append(item)
         basis_pair = (alice["basis"], bob["basis"])

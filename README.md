@@ -36,7 +36,7 @@ Avvia una simulazione dalla porta pubblica dell'API Gateway:
 ```bash
 curl -X POST http://localhost:8000/simulations \
   -H "Content-Type: application/json" \
-  -d '{"shots": 1000, "enable_noise": false, "enable_eve": false}'
+  -d '{"shots": 1000, "enable_noise": false, "noise_level": 0.0, "enable_eve": false}'
 ```
 
 La risposta contiene un `session_id`. Per leggere il risultato salvato:
@@ -50,7 +50,7 @@ Esempio con rumore ed Eve abilitati:
 ```bash
 curl -X POST http://localhost:8000/simulations \
   -H "Content-Type: application/json" \
-  -d '{"shots": 1000, "enable_noise": true, "enable_eve": true}'
+  -d '{"shots": 1000, "enable_noise": true, "noise_level": 0.05, "enable_eve": true}'
 ```
 
 ## Flusso baseline
@@ -109,6 +109,16 @@ S = E(A0,B0) + E(A0,B1) + E(A1,B0) - E(A1,B1)
 
 dove `E(A,B)` e' la media dei prodotti `outcome_alice * outcome_bob` per la coppia di basi considerata.
 
+Il valore CHSH restituito e' una stima statistica su campioni finiti. Il risultato include anche:
+
+- `abs_chsh`
+- `classical_bound = 2.0`
+- `tsirelson_bound = 2.8284271247461903`
+- `bell_violation`, vero quando `abs_chsh > classical_bound`
+- `finite_sample_estimate = true`
+
+Il valore non viene limitato artificialmente al bound di Tsirelson: con pochi shot puo' oscillare leggermente oltre `2√2`; aumentando il numero di shot converge verso il valore teorico atteso.
+
 Il QBER e' calcolato sul `key_subset` come:
 
 ```text
@@ -117,12 +127,43 @@ QBER = error_count / compared_bits
 
 Nei round `K/K`, lo stato di singoletto produce outcome idealmente anti-correlati. Per derivare la chiave, il bit di Bob viene quindi invertito prima del confronto con Alice.
 
+## Noise Model
+
+Il Noise Model e' ancora simbolico e controllato. La richiesta di simulazione accetta:
+
+```json
+{
+  "shots": 10000,
+  "enable_noise": true,
+  "noise_level": 0.05,
+  "enable_eve": false
+}
+```
+
+`noise_level` e' un valore tra `0.0` e `1.0`. Il parametro viene propagato da `api-gateway` a `orchestrator`, poi a `quantum-channel`, che chiama il servizio `noise-model`.
+
+Il servizio `noise-model` non conosce basi, CHSH o QBER. Il suo ruolo e' solo marcare alcune coppie come disturbate: per ogni `pair_id`, con probabilita' `noise_level`, restituisce quel `pair_id` in `disturbed_pair_ids`.
+
+Il `quantum-channel` allega quindi `noise_applied=true` ai pair disturbati. Alice e Bob preservano questo flag nelle misure, il `classical-channel` lo mantiene nei subset riconciliati, e `sifting-bell-test` usa il flag per degradare le correlazioni.
+
+Strategia simbolica attuale: dopo aver generato gli outcome ideali del singoletto, se un round ha `noise_applied=true`, `sifting-bell-test` applica un flip all'outcome di Bob. Questo riduce progressivamente `abs_chsh` sui round Bell e aumenta il QBER sui round `K/K`.
+
+Classificazione:
+
+- `secure`: `abs_chsh > 2.0` e `qber <= 0.11`
+- `degraded`: `abs_chsh > 2.0` e `qber > 0.11`
+- `insecure`: `abs_chsh <= 2.0` oppure `qber >= 0.25`
+
+In caso di conflitto, prevale `insecure`.
+
 ## Note implementative
 
 - Comunicazione tra servizi: HTTP REST.
 - Persistenza: in-memory nel servizio `result-store`.
 - Nessun Kafka o message broker.
-- Misure iniziali, rumore e attacco Eve sono placeholder simbolici.
+- Misure iniziali, Noise Model e attacco Eve sono placeholder simbolici.
+- Il Noise Model marca coppie disturbate, mentre il Bell/QBER service usa quei flag per degradare correlazioni e chiave.
 - Il Bell test usa un sampler classico delle correlazioni ideali E91, non Qiskit.
 - CHSH e QBER sono calcolati dai risultati simulati usati nel post-processing.
+- Non e' ancora un modello fisico completo.
 - `shared` e' predisposto come servizio baseline per futuri schemi o utility comuni.

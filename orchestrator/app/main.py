@@ -24,6 +24,7 @@ RESULT_STORE_URL = os.getenv("RESULT_STORE_URL", "http://result-store:8011")
 class RunSessionRequest(BaseModel):
     shots: int = Field(default=1000, gt=0)
     enable_noise: bool = False
+    noise_level: float = Field(default=0.0, ge=0.0, le=1.0)
     enable_eve: bool = False
 
 
@@ -58,6 +59,7 @@ async def run_session(request: RunSessionRequest) -> dict:
                 "session_id": session_id,
                 "pairs": source["pairs"],
                 "enable_noise": request.enable_noise,
+                "noise_level": request.noise_level,
                 "enable_eve": request.enable_eve,
             },
         )
@@ -98,6 +100,8 @@ async def run_session(request: RunSessionRequest) -> dict:
             "transmission": {
                 "pair_count": len(transmitted["pairs"]),
                 "noise_enabled": request.enable_noise,
+                "noise_level": request.noise_level,
+                "noise_applied_count": transmitted.get("noise_applied_count", 0),
                 "eve_enabled": request.enable_eve,
             },
             "sifting_bell_test": evaluation,

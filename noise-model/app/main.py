@@ -1,4 +1,5 @@
 import logging
+import random
 
 from fastapi import FastAPI
 from pydantic import BaseModel, Field
@@ -23,5 +24,14 @@ def health() -> dict[str, str]:
 @app.post("/apply-noise")
 def apply_noise(request: NoiseRequest) -> dict:
     logger.info("Applying symbolic noise level %.3f to %s", request.noise_level, request.session_id)
-    pairs = [{**pair, "noise_applied": True, "noise_level": request.noise_level} for pair in request.pairs]
-    return {"session_id": request.session_id, "pairs": pairs}
+    disturbed_pair_ids = [
+        pair["pair_id"]
+        for pair in request.pairs
+        if random.random() < request.noise_level
+    ]
+    return {
+        "session_id": request.session_id,
+        "noise_level": request.noise_level,
+        "noise_applied_count": len(disturbed_pair_ids),
+        "disturbed_pair_ids": disturbed_pair_ids,
+    }
