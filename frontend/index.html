@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>E91 QKD Microservices Dashboard</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="app.js" defer></script>
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark">E91</div>
+        <div>
+          <h1>E91 QKD Microservices Dashboard</h1>
+          <p>API Gateway <span id="gateway-url">http://localhost:18000</span></p>
+        </div>
+      </div>
+      <div class="topbar-actions">
+        <span class="badge badge-purple">TWO_KEY_BASES_ONE_CHECK_BASIS</span>
+        <span id="current-status" class="status-pill status-idle">idle</span>
+        <button id="refresh-button" class="button button-secondary" type="button">Refresh Data</button>
+      </div>
+    </header>
+
+    <main class="dashboard">
+      <section class="panel settings-panel">
+        <div class="panel-heading">
+          <h2>Simulation Settings</h2>
+          <span class="panel-kicker">POST /simulations</span>
+        </div>
+        <form id="simulation-form" class="settings-grid">
+          <label class="field">
+            <span>shots</span>
+            <input id="shots" name="shots" type="number" min="1" step="1" value="10000">
+          </label>
+          <label class="toggle-row">
+            <input id="enable-noise" name="enable_noise" type="checkbox">
+            <span>enable_noise</span>
+          </label>
+          <label class="field">
+            <span>noise_level</span>
+            <input id="noise-level" name="noise_level" type="number" min="0" max="1" step="0.01" value="0.00">
+          </label>
+          <label class="toggle-row">
+            <input id="enable-eve" name="enable_eve" type="checkbox">
+            <span>enable_eve</span>
+          </label>
+          <label class="field">
+            <span>eve_attack_probability</span>
+            <input id="eve-attack-probability" name="eve_attack_probability" type="number" min="0" max="1" step="0.01" value="0.00">
+          </label>
+          <div class="scenario-buttons">
+            <button type="button" class="button button-secondary scenario-button" data-scenario="baseline">Baseline</button>
+            <button type="button" class="button button-secondary scenario-button" data-scenario="degraded">Noise 0.10</button>
+            <button type="button" class="button button-secondary scenario-button" data-scenario="insecure">Noise 0.25</button>
+          </div>
+          <button id="run-button" class="button button-primary" type="submit">Run Simulation</button>
+        </form>
+      </section>
+
+      <section class="panel protocol-panel">
+        <div class="panel-heading">
+          <h2>Protocol View</h2>
+          <span id="protocol-state" class="panel-kicker">idle</span>
+        </div>
+        <div id="protocol-map" class="protocol-map">
+          <div class="service-card service-epr" data-service="epr">
+            <span class="service-role">Entangled Source</span>
+            <strong>EPR</strong>
+            <small>E91 singlet source</small>
+          </div>
+          <div class="arrow">&rarr;</div>
+          <div class="channel-stack">
+            <div id="noise-node" class="service-card service-noise">
+              <span class="service-role">Noise Model</span>
+              <strong>Noise</strong>
+              <small>symbolic disturbance</small>
+            </div>
+            <div id="quantum-channel-node" class="service-card service-channel">
+              <span class="service-role">Quantum Channel</span>
+              <strong>Qubits</strong>
+              <small>flags noise / Eve</small>
+              <div class="photon-track" aria-hidden="true">
+                <span class="photon photon-one"></span>
+                <span class="photon photon-two"></span>
+                <span class="photon photon-three"></span>
+              </div>
+            </div>
+            <div id="eve-node" class="service-card service-eve">
+              <span class="service-role">Eve</span>
+              <strong>Attack</strong>
+              <small>intentional perturbation</small>
+            </div>
+          </div>
+          <div class="arrow">&rarr;</div>
+          <div class="receiver-stack">
+            <div class="service-card service-alice">
+              <span class="service-role">Alice</span>
+              <strong>C / K0 / K1</strong>
+              <small>basis choice</small>
+            </div>
+            <div class="service-card service-bob">
+              <span class="service-role">Bob</span>
+              <strong>K0 / K1 / C</strong>
+              <small>basis choice</small>
+            </div>
+          </div>
+          <div class="flow-break"></div>
+          <div class="service-card service-classical">
+            <span class="service-role">Classical Channel</span>
+            <strong>Reconcile</strong>
+            <small>key / bell / discarded</small>
+          </div>
+          <div class="arrow">&rarr;</div>
+          <div class="service-card service-bell">
+            <span class="service-role">Sifting & Bell Test</span>
+            <strong>CHSH / QBER</strong>
+            <small>Bell post-processing</small>
+          </div>
+          <div class="arrow">&rarr;</div>
+          <div class="service-card service-key">
+            <span class="service-role">Key Processing</span>
+            <strong>SHA-256 demo</strong>
+            <small>privacy amplification</small>
+          </div>
+          <div class="arrow">&rarr;</div>
+          <div class="service-card service-kms">
+            <span class="service-role">Key Repository</span>
+            <strong>Mini KMS</strong>
+            <small>persisted key records</small>
+          </div>
+        </div>
+        <div class="live-graph-shell">
+          <div class="live-graph-heading">
+            <div>
+              <h3>Live E91 Network Graph</h3>
+              <p>Alice, Bob, entangled source, Eve and key flow update while you edit the controls.</p>
+            </div>
+            <span id="live-estimate-status" class="status-pill status-idle">preview</span>
+          </div>
+          <canvas id="protocol-canvas" class="protocol-canvas"></canvas>
+          <div class="live-legend">
+            <span><i class="legend-dot legend-epr"></i>entangled source</span>
+            <span><i class="legend-dot legend-alice"></i>Alice</span>
+            <span><i class="legend-dot legend-bob"></i>Bob</span>
+            <span><i class="legend-dot legend-eve"></i>Eve</span>
+            <span><i class="legend-dot legend-key"></i>estimated key material</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="metric-grid">
+        <article class="metric-card metric-purple">
+          <span>abs(CHSH)</span>
+          <strong id="metric-abs-chsh">N/A</strong>
+          <small>secure threshold 2.4</small>
+        </article>
+        <article class="metric-card metric-red">
+          <span>QBER</span>
+          <strong id="metric-qber">N/A</strong>
+          <small>secure threshold 0.08</small>
+        </article>
+        <article class="metric-card">
+          <span>security_status</span>
+          <strong id="metric-security">N/A</strong>
+          <small>secure / degraded / insecure</small>
+        </article>
+        <article class="metric-card">
+          <span>key_status</span>
+          <strong id="metric-key">N/A</strong>
+          <small>generated / discarded</small>
+        </article>
+      </section>
+
+      <section class="panel result-panel">
+        <div class="panel-heading">
+          <h2>Latest Simulation Result</h2>
+          <span id="latest-session-chip" class="panel-kicker">no session yet</span>
+        </div>
+        <div id="latest-result-grid" class="result-grid"></div>
+      </section>
+
+      <section class="panel summary-panel">
+        <div class="panel-heading">
+          <h2>Key Summary</h2>
+          <span class="panel-kicker">GET /keys/summary</span>
+        </div>
+        <div id="summary-grid" class="summary-grid"></div>
+      </section>
+
+      <section class="panel kms-panel">
+        <div class="panel-heading">
+          <h2>Mini KMS / Key Repository</h2>
+          <span class="panel-kicker">latest 10 sessions · click row for details</span>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>session_id</th>
+                <th>created_at</th>
+                <th>abs_chsh</th>
+                <th>qber</th>
+                <th>security</th>
+                <th>key</th>
+                <th>final_key_length</th>
+                <th>noise</th>
+                <th>eve</th>
+              </tr>
+            </thead>
+            <tbody id="kms-table-body"></tbody>
+          </table>
+        </div>
+        <div id="key-detail-panel" class="key-detail-panel hidden">
+          <div class="detail-heading">
+            <div>
+              <h3>Key Record Detail</h3>
+              <p id="key-detail-subtitle">GET /keys/{session_id}</p>
+            </div>
+            <button id="close-detail-button" class="button button-secondary" type="button">Close</button>
+          </div>
+          <div id="key-detail-grid" class="result-grid"></div>
+        </div>
+      </section>
+
+      <section class="panel charts-panel">
+        <div class="panel-heading">
+          <h2>Recent Charts</h2>
+          <span class="panel-kicker">native canvas · offline</span>
+        </div>
+        <div id="chart-warning" class="inline-warning hidden"></div>
+        <div class="charts-grid">
+          <div class="chart-box chart-box-wide">
+            <h3>Live key estimate from current controls</h3>
+            <canvas id="live-key-chart"></canvas>
+          </div>
+          <div class="chart-box">
+            <h3>abs_CHSH latest sessions</h3>
+            <canvas id="chsh-chart"></canvas>
+          </div>
+          <div class="chart-box">
+            <h3>QBER latest sessions</h3>
+            <canvas id="qber-chart"></canvas>
+          </div>
+          <div class="chart-box">
+            <h3>Key status counts</h3>
+            <canvas id="key-count-chart"></canvas>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel logs-panel">
+        <div class="panel-heading">
+          <h2>Logs / Session History</h2>
+          <span class="panel-kicker">client events</span>
+        </div>
+        <div id="log-list" class="log-list"></div>
+      </section>
+    </main>
+  </body>
+</html>

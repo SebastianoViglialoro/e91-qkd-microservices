@@ -130,6 +130,10 @@ services:
     container_name: e91-result-store
     ports:
       - "8011:8011"
+    environment:
+      KEY_RECORDS_PATH: /data/key-records.json
+    volumes:
+      - ./data:/data
     networks:
       - e91-network
 

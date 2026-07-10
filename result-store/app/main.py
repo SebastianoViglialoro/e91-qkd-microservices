@@ -1,5 +1,8 @@
+import json
 import logging
+import os
 from datetime import datetime, timezone
+from pathlib import Path
 from statistics import mean
 
 from fastapi import FastAPI, HTTPException
@@ -11,6 +14,7 @@ logger = logging.getLogger("result-store")
 app = FastAPI(title="E91 Result Store")
 RESULTS: dict[str, dict] = {}
 KEY_RECORDS: dict[str, dict] = {}
+KEY_RECORDS_PATH = Path(os.getenv("KEY_RECORDS_PATH", "/data/key-records.json"))
 
 
 class Result(BaseModel):
@@ -65,6 +69,44 @@ def average_numeric(records: list[dict], field: str) -> float:
     return round(mean(values), 4) if values else 0.0
 
 
+def load_key_records() -> None:
+    if not KEY_RECORDS_PATH.exists():
+        logger.info("No persisted key records found at %s", KEY_RECORDS_PATH)
+        return
+
+    try:
+        with KEY_RECORDS_PATH.open(encoding="utf-8") as key_records_file:
+            payload = json.load(key_records_file)
+    except (OSError, json.JSONDecodeError) as exc:
+        logger.warning("Cannot load persisted key records from %s: %s", KEY_RECORDS_PATH, exc)
+        return
+
+    records = payload.get("key_records", {})
+    if not isinstance(records, dict):
+        logger.warning("Ignoring invalid key records payload at %s", KEY_RECORDS_PATH)
+        return
+
+    KEY_RECORDS.update(records)
+    logger.info("Loaded %s persisted key records from %s", len(KEY_RECORDS), KEY_RECORDS_PATH)
+
+
+def persist_key_records() -> None:
+    payload = {"key_records": KEY_RECORDS}
+    try:
+        KEY_RECORDS_PATH.parent.mkdir(parents=True, exist_ok=True)
+        temp_path = KEY_RECORDS_PATH.with_suffix(".tmp")
+        with temp_path.open("w", encoding="utf-8") as key_records_file:
+            json.dump(payload, key_records_file, indent=2)
+        temp_path.replace(KEY_RECORDS_PATH)
+    except OSError as exc:
+        logger.warning("Cannot persist key records to %s: %s", KEY_RECORDS_PATH, exc)
+
+
+@app.on_event("startup")
+def startup() -> None:
+    load_key_records()
+
+
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok", "service": "result-store"}
@@ -76,6 +118,7 @@ def save_result(result: Result) -> dict[str, str]:
     result_payload = result.model_dump()
     RESULTS[result.session_id] = result_payload
     KEY_RECORDS[result.session_id] = build_key_record(result_payload)
+    persist_key_records()
     return {"status": "saved", "session_id": result.session_id}
 
 

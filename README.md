@@ -219,12 +219,14 @@ Se la sessione e' `degraded` o `insecure`, la chiave finale non viene generata e
 
 ## Mini KMS dimostrativo
 
-Il servizio `result-store` mantiene anche un archivio in-memory di key record sintetici. Non e' un KMS industriale: serve a mostrare come la disponibilita' delle chiavi cambia al variare di rumore ed Eve, e sara' usato dalla futura dashboard HTML/JS.
+Il servizio `result-store` mantiene anche un archivio di key record sintetici. Non e' un KMS industriale: serve a mostrare come la disponibilita' delle chiavi cambia al variare di rumore ed Eve, e sara' usato dalla dashboard HTML/JS.
 
 Quando una simulazione termina, `result-store` salva:
 
 - il risultato completo della sessione;
 - un key record sintetico con stato della chiave, QBER, CHSH, rumore, Eve e metadati di hashing.
+
+Con Docker Compose, i key record sintetici vengono persistiti in `data/key-records.json` tramite volume locale. Il risultato completo della sessione resta invece in memoria.
 
 La chiave finale viene salvata solo se `key_status = "generated"`. Per sessioni `discarded`, `discarded_degraded` o `insufficient_key_material`, `final_key = null`.
 
@@ -242,6 +244,70 @@ Se la porta `8000` e' occupata, usa la porta alternativa del gateway, per esempi
 ```bash
 curl http://localhost:18000/keys/summary
 ```
+
+## Frontend Dashboard
+
+La cartella `frontend/` contiene una dashboard dimostrativa HTML/CSS/JavaScript vanilla, ispirata allo stile del QKD-Simulator del professore. Non usa React, Vite o TypeScript e non contiene logica di simulazione: visualizza solo i risultati prodotti dai microservizi tramite API Gateway.
+
+Per avviarla:
+
+```bash
+cd frontend
+python3 -m http.server 5173
+```
+
+Poi apri:
+
+```text
+http://localhost:5173
+```
+
+La dashboard usa l'API Gateway locale:
+
+```text
+http://localhost:18000
+```
+
+Endpoint usati:
+
+- `POST /simulations`
+- `GET /keys/summary`
+- `GET /keys/latest?limit=10`
+- `GET /keys/{session_id}`, previsto per dettaglio sessione
+- `GET /keys`, previsto per storico completo
+
+Pannelli principali:
+
+- `Simulation Settings`, per configurare shots, rumore ed Eve;
+- `Protocol View`, vista dinamica del flusso E91 con Source, Quantum Channel, Alice/Bob, Noise, Eve, Classical Channel, Bell Test, Key Processing e Mini KMS;
+- `Latest Simulation Result`, con CHSH, QBER, security status e key status;
+- `Key Summary`, con statistiche aggregate del repository chiavi;
+- `Mini KMS / Key Repository`, tabella delle ultime sessioni;
+- `Recent Charts`, con grafici canvas nativi per preview chiave, `abs_CHSH`, QBER e conteggio delle chiavi;
+- `Logs / Session History`, con eventi client ed errori.
+
+Il mini KMS resta un repository dimostrativo, non un KMS industriale. Serve a mostrare come rumore ed Eve influenzano la disponibilita' delle chiavi. I key record sintetici vengono persistiti in `data/key-records.json` quando il servizio gira con Docker Compose; la cartella `data/` e' ignorata da Git per evitare di committare materiale runtime.
+
+La dashboard include anche:
+
+- pulsanti scenario per baseline, degraded e insecure;
+- grafico canvas dinamico con Entangled Source, Alice, Bob, Eve, Noise e Mini KMS;
+- preview live dei parametri: Eve, noise, shots e probabilita' di attacco aggiornano subito colori, link e stima della chiave;
+- grafico live della chiave stimata dai controlli correnti;
+- animazione leggera del canale quantistico durante le run e nella vista E91;
+- refresh automatico ogni 15 secondi;
+- dettaglio sessione cliccando una riga del Mini KMS.
+
+La preview live serve solo per rendere interattiva la dashboard mentre si modificano i parametri. I valori ufficiali della simulazione restano quelli restituiti dai microservizi dopo `POST /simulations` e salvati nel mini KMS.
+
+La dashboard gira su `localhost:5173` e chiama `localhost:18000`; per questo l'API Gateway abilita CORS solo per:
+
+```text
+http://localhost:5173
+http://127.0.0.1:5173
+```
+
+Se il browser mostra errori CORS, verifica che l'immagine/container `api-gateway` sia stata ricostruita dopo questa modifica.
 
 ## Verifica Qiskit opzionale
 
@@ -337,7 +403,7 @@ Se una run non contiene campioni per tutte le quattro combinazioni CHSH, `chsh_a
 ## Note implementative
 
 - Comunicazione tra servizi: HTTP REST.
-- Persistenza: in-memory nel servizio `result-store`.
+- Persistenza: risultati completi in memoria; key record sintetici del Mini KMS persistiti in `data/key-records.json` quando si usa Docker Compose.
 - Nessun Kafka o message broker.
 - Misure iniziali, Noise Model e attacco Eve sono placeholder simbolici.
 - Il Noise Model marca coppie disturbate, mentre il Bell/QBER service usa quei flag per degradare correlazioni e chiave.

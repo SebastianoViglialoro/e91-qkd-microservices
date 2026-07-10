@@ -15,6 +15,7 @@ htmlcov/
 *.log
 
 .docker/
+data/
 dist/
 build/
 *.egg-info/
