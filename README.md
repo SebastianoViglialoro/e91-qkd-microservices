@@ -2,7 +2,7 @@
 
 Baseline architetturale a microservizi per una simulazione del protocollo E91 per Quantum Key Distribution.
 
-Questa versione definisce servizi FastAPI avviabili con Docker Compose e un flusso REST end-to-end. Gli outcome non sono ancora prodotti da Qiskit: il servizio `sifting-bell-test` usa un sampler classico delle correlazioni ideali E91 per lo stato di singoletto. CHSH e QBER sono calcolati dal post-processing dei risultati simulati. Qiskit non e' usato come centro della simulazione; potra' essere integrato in seguito nel servizio `sifting-bell-test` per la verifica Bell/CHSH.
+Questa versione definisce servizi FastAPI avviabili con Docker Compose e un flusso REST end-to-end. Il flusso principale usa ancora un sampler classico delle correlazioni ideali E91 per lo stato di singoletto. Qiskit e' integrato solo in modo opzionale nel servizio `sifting-bell-test`, tramite `app/qiskit_sampler.py`, per una prima verifica Bell/CHSH con AerSimulator. Qiskit non governa l'intera architettura e non e' usato come centro della simulazione.
 
 ## Servizi
 
@@ -87,6 +87,20 @@ python scripts/plot_experiment_results.py
 
 I PNG vengono salvati in `results/plots/`.
 
+Per confrontare il sampler classico della pipeline end-to-end con il sampler Qiskit opzionale:
+
+```bash
+python scripts/compare_samplers.py
+```
+
+Lo script esegue 10 ripetizioni con `shots=10000` per la pipeline classica e `shots_per_basis=2500` per `/qiskit-chsh-test`, poi salva:
+
+- `results/sampler_comparison_runs.csv`
+- `results/sampler_comparison_summary.csv`
+- `results/sampler_comparison_summary.json`
+
+Il sampler classico resta quello del flusso end-to-end; il sampler Qiskit viene usato come validazione isolata della verifica Bell/CHSH.
+
 ## Flusso baseline
 
 `api-gateway` inoltra la richiesta all'`orchestrator`, che coordina:
@@ -100,7 +114,7 @@ I PNG vengono salvati in `results/plots/`.
 7. `key-processing /generate-key`
 8. `result-store /results`
 
-## Post-processing CHSH e QBER
+## Post-processing basi, check e QBER
 
 Le misure prodotte da `alice-service` e `bob-service` includono:
 
@@ -111,23 +125,37 @@ Le misure prodotte da `alice-service` e `bob-service` includono:
 - `basis_angle`
 - `outcome`, con valore `-1` o `+1`
 
-Le basi per Bell/CHSH sono:
+La baseline usa il modello `TWO_KEY_BASES_ONE_CHECK_BASIS`, definito in modo centralizzato in `shared/bases.py`.
 
-- Alice: `A0 = 0 deg`, `A1 = 90 deg`
-- Bob: `B0 = 45 deg`, `B1 = -45 deg`
+Correzione del modello: la versione precedente usava due basi dedicate a Bell/CHSH e una sola base per la chiave (`CHSH_PLUS_KEY_BASIS`). Questa struttura e' stata superata. La baseline corretta usa due basi per la generazione della chiave, in stile BB84, e una terza base per il controllo dello stato quantistico.
 
-La base dedicata alla key extraction e' separata:
+Ogni receiver sceglie casualmente tra tre basi di misura:
 
-- Alice: `K = 0 deg`
-- Bob: `K = 0 deg`
+- Alice: `C = 0 deg`, ruolo `check`
+- Alice: `K0 = 45 deg`, ruolo `key`
+- Alice: `K1 = 90 deg`, ruolo `key`
+- Bob: `K0 = 45 deg`, ruolo `key`
+- Bob: `K1 = 90 deg`, ruolo `key`
+- Bob: `C = -45 deg`, ruolo `check`
+
+Gli angoli sono centralizzati e restano modificabili in `shared/bases.py`. La logica di handshake/randomizzazione piu' raffinata per il canale di check potra' essere aggiunta in una fase successiva.
+
+Le basi `K0/K0` e `K1/K1` sono riservate alla generazione della chiave. CHSH richiede invece quattro combinazioni di misura: la base `C` viene usata come base di controllo insieme ad alcune combinazioni non-key.
 
 Il `classical-channel` riconcilia le misure per `pair_id` e produce:
 
-- `bell_subset`, per le combinazioni `A0/B0`, `A0/B1`, `A1/B0`, `A1/B1`
-- `key_subset`, per i round `K/K`
+- `key_subset`, per i round `K0/K0` e `K1/K1`
+- `bell_subset`, per le combinazioni `C/K0`, `C/C`, `K1/K0`, `K1/C`
+- `check_subset`, alias compatibile di `bell_subset`
 - `discarded_subset`, per tutte le altre combinazioni
 
-Nel servizio `sifting-bell-test`, gli outcome usati per Bell test e key subset sono ricampionati con un modello classico semplificato dello stato di singoletto:
+Il risultato del post-processing include anche:
+
+- `basis_model = "TWO_KEY_BASES_ONE_CHECK_BASIS"`
+- `alice_bases = ["C", "K0", "K1"]`
+- `bob_bases = ["K0", "K1", "C"]`
+
+Nel servizio `sifting-bell-test`, gli outcome usati per check subset e key subset sono ricampionati con un modello classico semplificato dello stato di singoletto:
 
 ```text
 E(a,b) = -cos(a - b)
@@ -135,23 +163,18 @@ P(same outcome) = (1 + E) / 2
 P(different outcome) = (1 - E) / 2
 ```
 
-Il servizio poi calcola:
+Il servizio calcola CHSH sul `bell_subset` usando i termini configurati in `shared/bases.py`:
 
 ```text
-S = E(A0,B0) + E(A0,B1) + E(A1,B0) - E(A1,B1)
+S = E(C,K0) + E(C,C) + E(K1,K0) - E(K1,C)
 ```
 
-dove `E(A,B)` e' la media dei prodotti `outcome_alice * outcome_bob` per la coppia di basi considerata.
+Il risultato include:
 
-Il valore CHSH restituito e' una stima statistica su campioni finiti. Il risultato include anche:
-
+- `chsh`
 - `abs_chsh`
-- `classical_bound = 2.0`
-- `tsirelson_bound = 2.8284271247461903`
-- `bell_violation`, vero quando `abs_chsh > classical_bound`
-- `finite_sample_estimate = true`
-
-Il valore non viene limitato artificialmente al bound di Tsirelson: con pochi shot puo' oscillare leggermente oltre `2√2`; aumentando il numero di shot converge verso il valore teorico atteso.
+- `chsh_available`, vero quando tutte le quattro combinazioni hanno almeno un campione
+- `correlations`, con `E(C,K0)`, `E(C,C)`, `E(K1,K0)`, `E(K1,C)`
 
 Il QBER e' calcolato sul `key_subset` come:
 
@@ -159,7 +182,100 @@ Il QBER e' calcolato sul `key_subset` come:
 QBER = error_count / compared_bits
 ```
 
-Nei round `K/K`, lo stato di singoletto produce outcome idealmente anti-correlati. Per derivare la chiave, il bit di Bob viene quindi invertito prima del confronto con Alice.
+Nei round `K0/K0` e `K1/K1`, lo stato di singoletto produce outcome idealmente anti-correlati. Per derivare la chiave, il bit di Bob viene quindi invertito prima del confronto con Alice.
+
+## Key processing
+
+Il servizio `key-processing` deriva la chiave dai soli round del `key_subset`:
+
+- `K0/K0`
+- `K1/K1`
+
+Per ogni round valido:
+
+1. l'outcome di Alice viene convertito in bit `0/1`;
+2. l'outcome di Bob viene convertito in bit `0/1`;
+3. il bit di Bob viene invertito, per correggere l'anti-correlazione ideale dello stato di singoletto;
+4. i bit corretti vengono usati per costruire la raw key binaria.
+
+Se `security_status = "secure"` e il materiale di chiave e' sufficiente, il servizio calcola:
+
+```text
+final_key = SHA256(raw_key_bits).hexdigest()
+```
+
+Il risultato include:
+
+- `raw_key_length`
+- `sifted_key_length`
+- `raw_key_preview`, primi 32 bit per debug
+- `final_key`, stringa esadecimale SHA-256
+- `final_key_length = 256`
+- `hash_function = "SHA-256"`
+- `privacy_amplification = "simplified_hash_demo"`
+- `key_basis_pairs = ["K0/K0", "K1/K1"]`
+
+Se la sessione e' `degraded` o `insecure`, la chiave finale non viene generata e `final_key = null`. L'uso di SHA-256 e' una dimostrazione semplificata di distillazione/privacy amplification: non e' ancora una implementazione completa di error correction e privacy amplification QKD.
+
+## Mini KMS dimostrativo
+
+Il servizio `result-store` mantiene anche un archivio in-memory di key record sintetici. Non e' un KMS industriale: serve a mostrare come la disponibilita' delle chiavi cambia al variare di rumore ed Eve, e sara' usato dalla futura dashboard HTML/JS.
+
+Quando una simulazione termina, `result-store` salva:
+
+- il risultato completo della sessione;
+- un key record sintetico con stato della chiave, QBER, CHSH, rumore, Eve e metadati di hashing.
+
+La chiave finale viene salvata solo se `key_status = "generated"`. Per sessioni `discarded`, `discarded_degraded` o `insufficient_key_material`, `final_key = null`.
+
+Endpoint esposti dall'API Gateway:
+
+```bash
+curl http://localhost:8000/keys
+curl http://localhost:8000/keys/<session_id>
+curl http://localhost:8000/keys/summary
+curl http://localhost:8000/keys/latest?limit=10
+```
+
+Se la porta `8000` e' occupata, usa la porta alternativa del gateway, per esempio:
+
+```bash
+curl http://localhost:18000/keys/summary
+```
+
+## Verifica Qiskit opzionale
+
+Il servizio `sifting-bell-test` contiene un modulo isolato:
+
+```text
+sifting-bell-test/app/qiskit_sampler.py
+```
+
+Il modulo usa Qiskit solo per validare/campionare il Bell/CHSH test quando esiste una mappatura CHSH configurata:
+
+- crea un circuito a 2 qubit e 2 bit classici;
+- prepara una Bell pair con `H` sul qubit 0 e `CX(0, 1)`;
+- applica rotazioni `RY` per rappresentare le basi di misura;
+- misura entrambi i qubit;
+- usa `AerSimulator`;
+- converte i counts in correlazioni `E(A,B)`;
+- calcola CHSH dai termini configurati nel modello condiviso.
+
+Il sampler classico resta il default dell'endpoint `/evaluate`. La verifica Qiskit e' esposta solo tramite endpoint di test del servizio `sifting-bell-test`:
+
+```bash
+curl -X POST http://localhost:8009/qiskit-chsh-test \
+  -H "Content-Type: application/json" \
+  -d '{"shots_per_basis": 2000}'
+```
+
+Risultato atteso: `sampler_mode = "qiskit"` e `abs_chsh` vicino a `2.8`, con oscillazioni statistiche dovute al numero finito di shot. L'endpoint resta una verifica isolata: Qiskit non governa il flusso end-to-end.
+
+Per controllare se le dipendenze Qiskit sono disponibili nel container:
+
+```bash
+curl http://localhost:8009/qiskit-health
+```
 
 ## Noise Model
 
@@ -181,7 +297,7 @@ Il servizio `noise-model` non conosce basi, CHSH o QBER. Il suo ruolo e' solo ma
 
 Il `quantum-channel` allega quindi `noise_applied=true` ai pair disturbati. Alice e Bob preservano questo flag nelle misure, il `classical-channel` lo mantiene nei subset riconciliati, e `sifting-bell-test` usa il flag per degradare le correlazioni.
 
-Strategia simbolica attuale: dopo aver generato gli outcome ideali del singoletto, se un round ha `noise_applied=true`, `sifting-bell-test` applica un flip all'outcome di Bob. Questo riduce progressivamente `abs_chsh` sui round Bell e aumenta il QBER sui round `K/K`.
+Strategia simbolica attuale: dopo aver generato gli outcome ideali del singoletto, se un round ha `noise_applied=true`, `sifting-bell-test` applica un flip all'outcome di Bob. Questo degrada i round di check e aumenta il QBER sui round `K0/K0` e `K1/K1`.
 
 ## Eve Attack
 
@@ -208,7 +324,7 @@ Il servizio `eve-service` non conosce basi, CHSH o QBER. Il suo ruolo e' marcare
 
 Il `quantum-channel` allega `eve_applied=true` ai pair attaccati. Alice e Bob preservano questo flag nelle misure, il `classical-channel` lo mantiene nei subset riconciliati, e `sifting-bell-test` usa il flag per degradare le correlazioni.
 
-Strategia simbolica attuale: dopo aver generato gli outcome ideali del singoletto, se un round ha `eve_applied=true`, `sifting-bell-test` randomizza l'outcome di Bob. Questo rappresenta un attacco simbolico tipo intercettazione/perturbazione del canale quantistico, rompe la correlazione Alice/Bob, riduce `abs_chsh` e aumenta il QBER. Non e' ancora un modello fisico completo.
+Strategia simbolica attuale: dopo aver generato gli outcome ideali del singoletto, se un round ha `eve_applied=true`, `sifting-bell-test` randomizza l'outcome di Bob. Questo rappresenta un attacco simbolico tipo intercettazione/perturbazione del canale quantistico, rompe la correlazione Alice/Bob, degrada i round di check e aumenta il QBER. Non e' ancora un modello fisico completo.
 
 Classificazione:
 
@@ -216,7 +332,7 @@ Classificazione:
 - `degraded`: `abs_chsh > 2.0` e `abs_chsh < 2.4`, oppure `qber > 0.08` e `qber <= 0.15`
 - `insecure`: `abs_chsh <= 2.0` oppure `qber > 0.15`
 
-In caso di conflitto, prevale `insecure`; altrimenti prevale `degraded` su `secure`. Il risultato include `classification_reason`, una stringa breve che spiega la classificazione.
+Se una run non contiene campioni per tutte le quattro combinazioni CHSH, `chsh_available=false` e lo stato viene marcato `degraded`. In caso di conflitto, prevale `insecure`; altrimenti prevale `degraded` su `secure`. Il risultato include `classification_reason`, una stringa breve che spiega la classificazione.
 
 ## Note implementative
 
@@ -226,7 +342,8 @@ In caso di conflitto, prevale `insecure`; altrimenti prevale `degraded` su `secu
 - Misure iniziali, Noise Model e attacco Eve sono placeholder simbolici.
 - Il Noise Model marca coppie disturbate, mentre il Bell/QBER service usa quei flag per degradare correlazioni e chiave.
 - Eve marca coppie attaccate, mentre il Bell/QBER service usa quei flag per rompere simbolicamente le correlazioni.
-- Il Bell test usa un sampler classico delle correlazioni ideali E91, non Qiskit.
-- CHSH e QBER sono calcolati dai risultati simulati usati nel post-processing.
+- Il Bell test del flusso principale usa un sampler classico delle correlazioni ideali E91.
+- Qiskit e' disponibile solo come verifica opzionale nel servizio `sifting-bell-test`.
+- QBER e check subset sono calcolati dai risultati simulati usati nel post-processing; CHSH viene calcolato solo quando il modello di basi fornisce quattro combinazioni check complete.
 - Non e' ancora un modello fisico completo.
 - `shared` e' predisposto come servizio baseline per futuri schemi o utility comuni.

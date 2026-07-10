@@ -2,8 +2,10 @@ import logging
 import math
 import random
 
-from fastapi import FastAPI
-from pydantic import BaseModel
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel, Field
+from app.qiskit_sampler import compute_chsh_qiskit, qiskit_available
+from shared.bases import ALICE_BASIS_NAMES, BASIS_MODEL, BOB_BASIS_NAMES, get_chsh_terms
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 logger = logging.getLogger("sifting-bell-test")
@@ -16,12 +18,10 @@ class EvaluateRequest(BaseModel):
     reconciled: dict
 
 
-CHSH_TERMS = {
-    ("A0", "B0"): 1,
-    ("A0", "B1"): 1,
-    ("A1", "B0"): 1,
-    ("A1", "B1"): -1,
-}
+class QiskitChshTestRequest(BaseModel):
+    shots_per_basis: int = Field(default=2000, gt=0, le=100000)
+
+
 CLASSICAL_BOUND = 2.0
 TSIRELSON_BOUND = 2.8284271247461903
 SECURE_CHSH_THRESHOLD = 2.4
@@ -46,7 +46,11 @@ def sample_singlet_outcomes(alice_angle_degrees: float, bob_angle_degrees: float
     return alice_outcome, bob_outcome
 
 
-def classify_security(abs_chsh: float, qber: float) -> tuple[str, str]:
+def classify_security(abs_chsh: float, qber: float, chsh_available: bool) -> tuple[str, str]:
+    if not chsh_available:
+        if qber > INSECURE_QBER_THRESHOLD:
+            return "insecure", "QBER above insecure threshold; CHSH unavailable"
+        return "degraded", "CHSH unavailable for current check-basis model"
     if abs_chsh <= CLASSICAL_BOUND:
         return "insecure", "Bell violation lost"
     if qber > INSECURE_QBER_THRESHOLD:
@@ -56,6 +60,59 @@ def classify_security(abs_chsh: float, qber: float) -> tuple[str, str]:
     if qber > SECURE_QBER_THRESHOLD:
         return "degraded", "QBER above degraded threshold"
     return "secure", "Bell violation preserved and QBER below secure threshold"
+
+
+def compute_chsh_from_check_subset(correlated_check_subset: list[dict]) -> dict:
+    chsh_terms = get_chsh_terms()
+    if len(chsh_terms) != 4:
+        return {
+            "chsh": 0.0,
+            "abs_chsh": 0.0,
+            "bell_violation": False,
+            "chsh_available": False,
+            "chsh_reason": "not enough check basis combinations",
+            "correlations": {},
+        }
+
+    correlations = {}
+    chsh = 0.0
+    for term in chsh_terms:
+        alice_basis = term["alice"]
+        bob_basis = term["bob"]
+        coefficient = term["coefficient"]
+        products = [
+            item["alice_outcome"] * item["bob_outcome"]
+            for item in correlated_check_subset
+            if item["alice_basis"] == alice_basis and item["bob_basis"] == bob_basis
+        ]
+        if not products:
+            return {
+                "chsh": 0.0,
+                "abs_chsh": 0.0,
+                "bell_violation": False,
+                "chsh_available": False,
+                "chsh_reason": "not enough check basis samples",
+                "correlations": correlations,
+            }
+        expectation = sum(products) / len(products)
+        correlations[f"E({alice_basis},{bob_basis})"] = {
+            "expectation": round(expectation, 4),
+            "samples": len(products),
+            "coefficient": coefficient,
+        }
+        chsh += coefficient * expectation
+
+    # Future integration point: Qiskit Bell/CHSH verification.
+    chsh = round(chsh, 4)
+    abs_chsh = abs(chsh)
+    return {
+        "chsh": chsh,
+        "abs_chsh": round(abs_chsh, 4),
+        "bell_violation": abs_chsh > CLASSICAL_BOUND,
+        "chsh_available": True,
+        "chsh_reason": "computed from configured check basis combinations",
+        "correlations": correlations,
+    }
 
 
 def correlate_with_singlet_sampler(items: list[dict]) -> list[dict]:
@@ -92,12 +149,42 @@ def health() -> dict[str, str]:
     return {"status": "ok", "service": "sifting-bell-test"}
 
 
+@app.get("/qiskit-health")
+def qiskit_health() -> dict:
+    return {
+        "status": "ok",
+        "service": "sifting-bell-test",
+        "qiskit_available": qiskit_available(),
+        "sampler_mode": "qiskit_optional",
+        "default_sampler_mode": "classical_singlet_sampler",
+    }
+
+
+@app.post("/qiskit-chsh-test")
+def qiskit_chsh_test(request: QiskitChshTestRequest) -> dict:
+    try:
+        result = compute_chsh_qiskit(request.shots_per_basis)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    return {
+        "basis_model": BASIS_MODEL,
+        "alice_bases": list(ALICE_BASIS_NAMES),
+        "bob_bases": list(BOB_BASIS_NAMES),
+        "shots_per_basis": request.shots_per_basis,
+        **result,
+    }
+
+
 @app.post("/evaluate")
 def evaluate(request: EvaluateRequest) -> dict:
     logger.info("Evaluating CHSH/QBER from simulated post-processing data for %s", request.session_id)
     key_subset = request.reconciled.get("key_subset", [])
-    bell_subset = request.reconciled.get("bell_subset", request.reconciled.get("bell_test_subset", []))
-    correlated_bell_subset = correlate_with_singlet_sampler(bell_subset)
+    check_subset = request.reconciled.get(
+        "check_subset",
+        request.reconciled.get("bell_subset", request.reconciled.get("bell_test_subset", [])),
+    )
+    correlated_check_subset = correlate_with_singlet_sampler(check_subset)
     correlated_key_subset = correlate_with_singlet_sampler(key_subset)
     matched_measurements = request.reconciled.get("matched_measurements", [])
     noise_applied_count = sum(1 for item in matched_measurements if item.get("noise_applied", False))
@@ -136,34 +223,25 @@ def evaluate(request: EvaluateRequest) -> dict:
         )
     qber = error_count / compared_bits if compared_bits else 0.0
 
-    correlations = {}
-    chsh = 0.0
-    for basis_pair, sign in CHSH_TERMS.items():
-        products = [
-            item["alice_outcome"] * item["bob_outcome"]
-            for item in correlated_bell_subset
-            if (item["alice_basis"], item["bob_basis"]) == basis_pair
-        ]
-        expectation = sum(products) / len(products) if products else 0.0
-        correlations[f"E({basis_pair[0]},{basis_pair[1]})"] = {
-            "expectation": round(expectation, 4),
-            "samples": len(products),
-        }
-        chsh += sign * expectation
-
-    # Future integration point: Qiskit Bell/CHSH verification.
-    chsh = round(chsh, 4)
-    abs_chsh = abs(chsh)
-    bell_violation = abs_chsh > CLASSICAL_BOUND
-    security_status, classification_reason = classify_security(abs_chsh, qber)
+    chsh_result = compute_chsh_from_check_subset(correlated_check_subset)
+    security_status, classification_reason = classify_security(
+        chsh_result["abs_chsh"],
+        qber,
+        chsh_result["chsh_available"],
+    )
 
     return {
         "session_id": request.session_id,
-        "chsh": chsh,
-        "abs_chsh": round(abs_chsh, 4),
+        "basis_model": BASIS_MODEL,
+        "alice_bases": list(ALICE_BASIS_NAMES),
+        "bob_bases": list(BOB_BASIS_NAMES),
+        "chsh": chsh_result["chsh"],
+        "abs_chsh": chsh_result["abs_chsh"],
         "classical_bound": CLASSICAL_BOUND,
         "tsirelson_bound": TSIRELSON_BOUND,
-        "bell_violation": bell_violation,
+        "bell_violation": chsh_result["bell_violation"],
+        "chsh_available": chsh_result["chsh_available"],
+        "chsh_reason": chsh_result["chsh_reason"],
         "finite_sample_estimate": True,
         "qber": round(qber, 4),
         "error_count": error_count,
@@ -174,13 +252,14 @@ def evaluate(request: EvaluateRequest) -> dict:
         "eve_enabled": eve_enabled,
         "eve_attack_probability": eve_attack_probability,
         "eve_applied_count": eve_applied_count,
-        "correlations": correlations,
+        "correlations": chsh_result["correlations"],
         "correlation_model": "classical_singlet_sampler",
         "key_bits": [record["alice_bit"] for record in key_records if not record["error"]],
         "key_records": key_records,
         "security_status": security_status,
         "classification_reason": classification_reason,
         "key_subset_size": len(correlated_key_subset),
-        "bell_subset_size": len(correlated_bell_subset),
+        "check_subset_size": len(correlated_check_subset),
+        "bell_subset_size": len(correlated_check_subset),
         "discarded_subset_size": len(request.reconciled.get("discarded_subset", [])),
     }

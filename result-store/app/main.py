@@ -1,4 +1,6 @@
 import logging
+from datetime import datetime, timezone
+from statistics import mean
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
@@ -8,6 +10,7 @@ logger = logging.getLogger("result-store")
 
 app = FastAPI(title="E91 Result Store")
 RESULTS: dict[str, dict] = {}
+KEY_RECORDS: dict[str, dict] = {}
 
 
 class Result(BaseModel):
@@ -19,6 +22,49 @@ class Result(BaseModel):
     key: dict
 
 
+def utc_now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def build_key_record(result: dict) -> dict:
+    session_id = result["session_id"]
+    request = result.get("request", {})
+    transmission = result.get("transmission", {})
+    evaluation = result.get("sifting_bell_test", {})
+    key = result.get("key", {})
+    key_status = key.get("key_status")
+
+    return {
+        "session_id": session_id,
+        "created_at": utc_now_iso(),
+        "basis_model": evaluation.get("basis_model"),
+        "security_status": evaluation.get("security_status"),
+        "key_status": key_status,
+        "abs_chsh": evaluation.get("abs_chsh"),
+        "chsh": evaluation.get("chsh"),
+        "qber": evaluation.get("qber"),
+        "raw_key_length": key.get("raw_key_length"),
+        "sifted_key_length": key.get("sifted_key_length"),
+        "final_key_length": key.get("final_key_length"),
+        "final_key": key.get("final_key") if key_status == "generated" else None,
+        "key_reason": key.get("key_reason"),
+        "noise_enabled": transmission.get("noise_enabled", request.get("enable_noise", False)),
+        "noise_level": transmission.get("noise_level", request.get("noise_level", 0.0)),
+        "eve_enabled": transmission.get("eve_enabled", request.get("enable_eve", False)),
+        "eve_attack_probability": transmission.get(
+            "eve_attack_probability",
+            request.get("eve_attack_probability", 0.0),
+        ),
+        "privacy_amplification": key.get("privacy_amplification"),
+        "hash_function": key.get("hash_function"),
+    }
+
+
+def average_numeric(records: list[dict], field: str) -> float:
+    values = [record[field] for record in records if isinstance(record.get(field), (int, float))]
+    return round(mean(values), 4) if values else 0.0
+
+
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok", "service": "result-store"}
@@ -27,7 +73,9 @@ def health() -> dict[str, str]:
 @app.post("/results")
 def save_result(result: Result) -> dict[str, str]:
     logger.info("Saving result %s", result.session_id)
-    RESULTS[result.session_id] = result.model_dump()
+    result_payload = result.model_dump()
+    RESULTS[result.session_id] = result_payload
+    KEY_RECORDS[result.session_id] = build_key_record(result_payload)
     return {"status": "saved", "session_id": result.session_id}
 
 
@@ -37,3 +85,47 @@ def get_result(session_id: str) -> dict:
     if result is None:
         raise HTTPException(status_code=404, detail="Result not found")
     return result
+
+
+@app.get("/keys")
+def list_keys() -> list[dict]:
+    return sorted(KEY_RECORDS.values(), key=lambda record: record["created_at"])
+
+
+@app.get("/keys/summary")
+def keys_summary() -> dict:
+    records = list(KEY_RECORDS.values())
+    total_sessions = len(records)
+    generated_keys = sum(1 for record in records if record.get("key_status") == "generated")
+    discarded_degraded = sum(
+        1 for record in records if record.get("key_status") == "discarded_degraded"
+    )
+    discarded_insecure = sum(1 for record in records if record.get("key_status") == "discarded")
+    insufficient_key_material = sum(
+        1 for record in records if record.get("key_status") == "insufficient_key_material"
+    )
+
+    return {
+        "total_sessions": total_sessions,
+        "generated_keys": generated_keys,
+        "discarded_degraded": discarded_degraded,
+        "discarded_insecure": discarded_insecure,
+        "insufficient_key_material": insufficient_key_material,
+        "average_qber": average_numeric(records, "qber"),
+        "average_abs_chsh": average_numeric(records, "abs_chsh"),
+        "generated_key_rate": round(generated_keys / total_sessions, 4) if total_sessions else 0.0,
+    }
+
+
+@app.get("/keys/latest")
+def latest_keys(limit: int = 10) -> list[dict]:
+    sorted_records = sorted(KEY_RECORDS.values(), key=lambda record: record["created_at"], reverse=True)
+    return sorted_records[: max(0, limit)]
+
+
+@app.get("/keys/{session_id}")
+def get_key(session_id: str) -> dict:
+    record = KEY_RECORDS.get(session_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="Key record not found")
+    return record

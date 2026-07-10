@@ -4,16 +4,12 @@ import random
 
 from fastapi import FastAPI
 from pydantic import BaseModel
+from shared.bases import ALICE_BASIS_BY_NAME, ALICE_BASIS_NAMES
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 logger = logging.getLogger("alice-service")
 
 app = FastAPI(title="E91 Alice Service")
-BASES = {
-    "A0": 0.0,
-    "A1": 90.0,
-    "K": 0.0,
-}
 
 
 class MeasureRequest(BaseModel):
@@ -37,14 +33,16 @@ def measure(request: MeasureRequest) -> dict:
     logger.info("Alice measuring %s symbolic qubits for %s", len(request.qubits), request.session_id)
     measurements = []
     for qubit in request.qubits:
-        basis = random.choice(list(BASES))
+        basis = random.choice(ALICE_BASIS_NAMES)
+        basis_definition = ALICE_BASIS_BY_NAME[basis]
         measurements.append(
             {
                 "session_id": request.session_id,
                 "pair_id": qubit["pair_id"],
                 "party": "alice",
                 "basis": basis,
-                "basis_angle": BASES[basis],
+                "basis_angle": basis_definition.angle_degrees,
+                "basis_role": basis_definition.role,
                 "outcome": simulated_outcome(qubit["pair_id"], basis),
                 "noise_applied": qubit.get("noise_applied", False),
                 "noise_level": qubit.get("noise_level", 0.0),

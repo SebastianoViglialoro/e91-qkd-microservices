@@ -47,3 +47,45 @@ async def get_simulation(session_id: str) -> dict:
     if response.status_code >= 400:
         raise HTTPException(status_code=response.status_code, detail=response.text)
     return response.json()
+
+
+@app.get("/keys")
+async def list_keys() -> list[dict]:
+    logger.info("Fetching key records")
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        response = await client.get(f"{RESULT_STORE_URL}/keys")
+    if response.status_code >= 400:
+        raise HTTPException(status_code=response.status_code, detail=response.text)
+    return response.json()
+
+
+@app.get("/keys/summary")
+async def keys_summary() -> dict:
+    logger.info("Fetching key summary")
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        response = await client.get(f"{RESULT_STORE_URL}/keys/summary")
+    if response.status_code >= 400:
+        raise HTTPException(status_code=response.status_code, detail=response.text)
+    return response.json()
+
+
+@app.get("/keys/latest")
+async def latest_keys(limit: int = 10) -> list[dict]:
+    logger.info("Fetching latest key records")
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        response = await client.get(f"{RESULT_STORE_URL}/keys/latest", params={"limit": limit})
+    if response.status_code >= 400:
+        raise HTTPException(status_code=response.status_code, detail=response.text)
+    return response.json()
+
+
+@app.get("/keys/{session_id}")
+async def get_key(session_id: str) -> dict:
+    logger.info("Fetching key record %s", session_id)
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        response = await client.get(f"{RESULT_STORE_URL}/keys/{session_id}")
+    if response.status_code == 404:
+        raise HTTPException(status_code=404, detail="Key record not found")
+    if response.status_code >= 400:
+        raise HTTPException(status_code=response.status_code, detail=response.text)
+    return response.json()

@@ -1,0 +1,22 @@
+[
+  {
+    "sampler_mode": "classical_singlet_sampler",
+    "runs": 10,
+    "abs_chsh_mean": 2.80981,
+    "abs_chsh_stddev": 0.03408080104692375,
+    "chsh_mean": -2.80981,
+    "chsh_stddev": 0.03408080104692375,
+    "qber_mean": 0.0,
+    "qber_stddev": 0.0
+  },
+  {
+    "sampler_mode": "qiskit",
+    "runs": 10,
+    "abs_chsh_mean": 2.8208,
+    "abs_chsh_stddev": 0.02159835384673767,
+    "chsh_mean": 2.8208,
+    "chsh_stddev": 0.02159835384673767,
+    "qber_mean": "",
+    "qber_stddev": ""
+  }
+]

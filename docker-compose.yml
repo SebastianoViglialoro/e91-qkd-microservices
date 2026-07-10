@@ -70,7 +70,9 @@ services:
       - e91-network
 
   alice-service:
-    build: ./alice-service
+    build:
+      context: .
+      dockerfile: alice-service/Dockerfile
     container_name: e91-alice-service
     ports:
       - "8005:8005"
@@ -78,7 +80,9 @@ services:
       - e91-network
 
   bob-service:
-    build: ./bob-service
+    build:
+      context: .
+      dockerfile: bob-service/Dockerfile
     container_name: e91-bob-service
     ports:
       - "8006:8006"
@@ -94,7 +98,9 @@ services:
       - e91-network
 
   classical-channel:
-    build: ./classical-channel
+    build:
+      context: .
+      dockerfile: classical-channel/Dockerfile
     container_name: e91-classical-channel
     ports:
       - "8008:8008"
@@ -102,7 +108,9 @@ services:
       - e91-network
 
   sifting-bell-test:
-    build: ./sifting-bell-test
+    build:
+      context: .
+      dockerfile: sifting-bell-test/Dockerfile
     container_name: e91-sifting-bell-test
     ports:
       - "8009:8009"
