@@ -1,5 +1,6 @@
 import logging
 import random
+from typing import Literal
 
 from fastapi import FastAPI
 from pydantic import BaseModel, Field
@@ -14,6 +15,7 @@ class NoiseRequest(BaseModel):
     session_id: str
     pairs: list[dict]
     noise_level: float = Field(default=0.0, ge=0.0, le=1.0)
+    noise_type: Literal["bit_flip", "depolarizing"] = "bit_flip"
 
 
 @app.get("/health")
@@ -23,7 +25,12 @@ def health() -> dict[str, str]:
 
 @app.post("/apply-noise")
 def apply_noise(request: NoiseRequest) -> dict:
-    logger.info("Applying symbolic noise level %.3f to %s", request.noise_level, request.session_id)
+    logger.info(
+        "Applying %s noise level %.3f to %s",
+        request.noise_type,
+        request.noise_level,
+        request.session_id,
+    )
     disturbed_pair_ids = [
         pair["pair_id"]
         for pair in request.pairs
@@ -32,6 +39,7 @@ def apply_noise(request: NoiseRequest) -> dict:
     return {
         "session_id": request.session_id,
         "noise_level": request.noise_level,
+        "noise_type": request.noise_type,
         "noise_applied_count": len(disturbed_pair_ids),
         "disturbed_pair_ids": disturbed_pair_ids,
     }

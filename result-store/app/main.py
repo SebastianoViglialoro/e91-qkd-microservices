@@ -54,10 +54,18 @@ def build_key_record(result: dict) -> dict:
         "key_reason": key.get("key_reason"),
         "noise_enabled": transmission.get("noise_enabled", request.get("enable_noise", False)),
         "noise_level": transmission.get("noise_level", request.get("noise_level", 0.0)),
+        "noise_type": transmission.get(
+            "noise_type",
+            evaluation.get("noise_type", request.get("noise_type", "bit_flip")),
+        ),
         "eve_enabled": transmission.get("eve_enabled", request.get("enable_eve", False)),
         "eve_attack_probability": transmission.get(
             "eve_attack_probability",
             request.get("eve_attack_probability", 0.0),
+        ),
+        "attack_type": transmission.get(
+            "attack_type",
+            evaluation.get("attack_type", request.get("attack_type", "randomize")),
         ),
         "privacy_amplification": key.get("privacy_amplification"),
         "hash_function": key.get("hash_function"),

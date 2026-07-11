@@ -122,15 +122,24 @@ def correlate_with_singlet_sampler(items: list[dict]) -> list[dict]:
             item["alice_basis_angle"],
             item["bob_basis_angle"],
         )
-        # Symbolic controlled-noise strategy:
-        # noise-model only marks disturbed pair_ids; this service applies the
-        # physical effect by flipping Bob's sampled outcome for those rounds.
+        noise_type = item.get("noise_type", "bit_flip")
+        attack_type = item.get("attack_type", "randomize")
+
+        # Symbolic controlled-noise strategies:
+        # - bit_flip: Bob's sampled outcome is inverted.
+        # - depolarizing: Bob's sampled outcome is randomized, approximating
+        #   loss of directional information without modelling a full channel.
         if item.get("noise_applied", False):
-            bob_outcome = -bob_outcome
-        # Symbolic Eve strategy:
-        # eve-service only marks attacked pair_ids; here Eve represents an
-        # intentional intercept/perturb attack by randomizing Bob's outcome,
-        # breaking the Alice/Bob singlet correlation for those rounds.
+            if noise_type == "depolarizing":
+                bob_outcome = random.choice(OUTCOMES)
+            else:
+                bob_outcome = -bob_outcome
+
+        # Symbolic Eve strategies:
+        # - randomize: Bob's outcome is randomized on attacked rounds.
+        # - intercept_resend: simplified intercept/resend model; Eve breaks
+        #   the entangled correlation, implemented here as an independent Bob
+        #   outcome while preserving a separate attack_type in the results.
         if item.get("eve_applied", False):
             bob_outcome = random.choice(OUTCOMES)
         correlated.append(
@@ -139,6 +148,8 @@ def correlate_with_singlet_sampler(items: list[dict]) -> list[dict]:
                 "alice_outcome": alice_outcome,
                 "bob_outcome": bob_outcome,
                 "correlation_model": "classical_singlet_sampler",
+                "noise_type": noise_type,
+                "attack_type": attack_type,
             }
         )
     return correlated
@@ -195,6 +206,14 @@ def evaluate(request: EvaluateRequest) -> dict:
     ]
     noise_level = max(noise_levels, default=0.0)
     noise_enabled = noise_level > 0.0
+    noise_type = next(
+        (
+            item.get("noise_type", "bit_flip")
+            for item in matched_measurements
+            if item.get("noise_applied", False) or item.get("noise_level", 0.0) > 0.0
+        ),
+        "bit_flip",
+    )
     eve_applied_count = sum(1 for item in matched_measurements if item.get("eve_applied", False))
     eve_attack_probabilities = [
         item.get("eve_attack_probability", 0.0)
@@ -203,6 +222,14 @@ def evaluate(request: EvaluateRequest) -> dict:
     ]
     eve_attack_probability = max(eve_attack_probabilities, default=0.0)
     eve_enabled = eve_attack_probability > 0.0
+    attack_type = next(
+        (
+            item.get("attack_type", "randomize")
+            for item in matched_measurements
+            if item.get("eve_applied", False) or item.get("eve_attack_probability", 0.0) > 0.0
+        ),
+        "randomize",
+    )
 
     compared_bits = len(correlated_key_subset)
     key_records = []
@@ -248,9 +275,11 @@ def evaluate(request: EvaluateRequest) -> dict:
         "compared_bits": compared_bits,
         "noise_enabled": noise_enabled,
         "noise_level": noise_level,
+        "noise_type": noise_type,
         "noise_applied_count": noise_applied_count,
         "eve_enabled": eve_enabled,
         "eve_attack_probability": eve_attack_probability,
+        "attack_type": attack_type,
         "eve_applied_count": eve_applied_count,
         "correlations": chsh_result["correlations"],
         "correlation_model": "classical_singlet_sampler",

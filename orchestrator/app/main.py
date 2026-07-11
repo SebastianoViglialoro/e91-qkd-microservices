@@ -1,5 +1,6 @@
 import logging
 import os
+from typing import Literal
 from uuid import uuid4
 
 import httpx
@@ -25,8 +26,10 @@ class RunSessionRequest(BaseModel):
     shots: int = Field(default=1000, gt=0)
     enable_noise: bool = False
     noise_level: float = Field(default=0.0, ge=0.0, le=1.0)
+    noise_type: Literal["bit_flip", "depolarizing"] = "bit_flip"
     enable_eve: bool = False
     eve_attack_probability: float = Field(default=0.0, ge=0.0, le=1.0)
+    attack_type: Literal["randomize", "intercept_resend"] = "randomize"
 
 
 async def post_json(client: httpx.AsyncClient, url: str, payload: dict) -> dict:
@@ -61,8 +64,10 @@ async def run_session(request: RunSessionRequest) -> dict:
                 "pairs": source["pairs"],
                 "enable_noise": request.enable_noise,
                 "noise_level": request.noise_level,
+                "noise_type": request.noise_type,
                 "enable_eve": request.enable_eve,
                 "eve_attack_probability": request.eve_attack_probability,
+                "attack_type": request.attack_type,
             },
         )
         alice = await post_json(
@@ -103,9 +108,11 @@ async def run_session(request: RunSessionRequest) -> dict:
                 "pair_count": len(transmitted["pairs"]),
                 "noise_enabled": request.enable_noise,
                 "noise_level": request.noise_level,
+                "noise_type": request.noise_type,
                 "noise_applied_count": transmitted.get("noise_applied_count", 0),
                 "eve_enabled": request.enable_eve,
                 "eve_attack_probability": request.eve_attack_probability,
+                "attack_type": request.attack_type,
                 "eve_applied_count": transmitted.get("eve_applied_count", 0),
             },
             "sifting_bell_test": evaluation,

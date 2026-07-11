@@ -3,7 +3,7 @@ services:
     build: ./api-gateway
     container_name: e91-api-gateway
     ports:
-      - "8000:8000"
+      - "18000:8000"
     environment:
       ORCHESTRATOR_URL: http://orchestrator:8001
       RESULT_STORE_URL: http://result-store:8011

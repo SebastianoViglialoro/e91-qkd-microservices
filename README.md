@@ -6,7 +6,7 @@ Questa versione definisce servizi FastAPI avviabili con Docker Compose e un flus
 
 ## Servizi
 
-- `api-gateway` porta `8000`
+- `api-gateway` porta host `18000` -> container `8000`
 - `orchestrator` porta `8001`
 - `entangled-source` porta `8002`
 - `quantum-channel` porta `8003`
@@ -34,7 +34,7 @@ docker compose up --build
 Avvia una simulazione dalla porta pubblica dell'API Gateway:
 
 ```bash
-curl -X POST http://localhost:8000/simulations \
+curl -X POST http://localhost:18000/simulations \
   -H "Content-Type: application/json" \
   -d '{"shots": 1000, "enable_noise": false, "noise_level": 0.0, "enable_eve": false}'
 ```
@@ -42,13 +42,13 @@ curl -X POST http://localhost:8000/simulations \
 La risposta contiene un `session_id`. Per leggere il risultato salvato:
 
 ```bash
-curl http://localhost:8000/simulations/<session_id>
+curl http://localhost:18000/simulations/<session_id>
 ```
 
 Esempio con rumore ed Eve abilitati:
 
 ```bash
-curl -X POST http://localhost:8000/simulations \
+curl -X POST http://localhost:18000/simulations \
   -H "Content-Type: application/json" \
   -d '{"shots": 1000, "enable_noise": true, "noise_level": 0.05, "enable_eve": true}'
 ```
@@ -73,7 +73,7 @@ Per impostare il numero di ripetizioni indipendenti per scenario:
 python scripts/run_experiments.py --repeats 10
 ```
 
-Per usare una porta diversa da `8000`:
+Per esplicitare l'URL dell'API Gateway:
 
 ```bash
 python scripts/run_experiments.py --gateway-url http://localhost:18000 --repeats 10
@@ -233,16 +233,10 @@ La chiave finale viene salvata solo se `key_status = "generated"`. Per sessioni 
 Endpoint esposti dall'API Gateway:
 
 ```bash
-curl http://localhost:8000/keys
-curl http://localhost:8000/keys/<session_id>
-curl http://localhost:8000/keys/summary
-curl http://localhost:8000/keys/latest?limit=10
-```
-
-Se la porta `8000` e' occupata, usa la porta alternativa del gateway, per esempio:
-
-```bash
+curl http://localhost:18000/keys
+curl http://localhost:18000/keys/<session_id>
 curl http://localhost:18000/keys/summary
+curl http://localhost:18000/keys/latest?limit=10
 ```
 
 ## Frontend Dashboard
@@ -352,6 +346,7 @@ Il Noise Model e' ancora simbolico e controllato. La richiesta di simulazione ac
   "shots": 10000,
   "enable_noise": true,
   "noise_level": 0.05,
+  "noise_type": "bit_flip",
   "enable_eve": false,
   "eve_attack_probability": 0.0
 }
@@ -359,11 +354,16 @@ Il Noise Model e' ancora simbolico e controllato. La richiesta di simulazione ac
 
 `noise_level` e' un valore tra `0.0` e `1.0`. Il parametro viene propagato da `api-gateway` a `orchestrator`, poi a `quantum-channel`, che chiama il servizio `noise-model`.
 
+`noise_type` e' opzionale e mantiene compatibilita' con le richieste precedenti. Valori supportati:
+
+- `bit_flip`, default: nei round disturbati `sifting-bell-test` inverte l'outcome di Bob;
+- `depolarizing`: nei round disturbati `sifting-bell-test` randomizza l'outcome di Bob.
+
 Il servizio `noise-model` non conosce basi, CHSH o QBER. Il suo ruolo e' solo marcare alcune coppie come disturbate: per ogni `pair_id`, con probabilita' `noise_level`, restituisce quel `pair_id` in `disturbed_pair_ids`.
 
 Il `quantum-channel` allega quindi `noise_applied=true` ai pair disturbati. Alice e Bob preservano questo flag nelle misure, il `classical-channel` lo mantiene nei subset riconciliati, e `sifting-bell-test` usa il flag per degradare le correlazioni.
 
-Strategia simbolica attuale: dopo aver generato gli outcome ideali del singoletto, se un round ha `noise_applied=true`, `sifting-bell-test` applica un flip all'outcome di Bob. Questo degrada i round di check e aumenta il QBER sui round `K0/K0` e `K1/K1`.
+Questi modelli sono ancora semplificati: servono a confrontare perturbazioni diverse su CHSH, QBER e disponibilita' della chiave, non rappresentano ancora un modello fisico completo del canale.
 
 ## Eve Attack
 
@@ -380,17 +380,23 @@ La richiesta di simulazione puo' abilitare Eve:
   "enable_noise": false,
   "noise_level": 0.0,
   "enable_eve": true,
-  "eve_attack_probability": 0.10
+  "eve_attack_probability": 0.10,
+  "attack_type": "intercept_resend"
 }
 ```
 
 `eve_attack_probability` e' un valore tra `0.0` e `1.0`. Il parametro viene propagato da `api-gateway` a `orchestrator`, poi a `quantum-channel`, che chiama il servizio `eve-service`.
 
+`attack_type` e' opzionale e mantiene compatibilita' con le richieste precedenti. Valori supportati:
+
+- `randomize`, default: nei round attaccati `sifting-bell-test` randomizza l'outcome di Bob;
+- `intercept_resend`: modello semplificato di intercettazione e reinvio; Eve rompe la correlazione entangled e il servizio lo implementa come outcome di Bob indipendente, mantenendo pero' il tipo di attacco distinto nel risultato.
+
 Il servizio `eve-service` non conosce basi, CHSH o QBER. Il suo ruolo e' marcare alcune coppie come attaccate: per ogni `pair_id`, con probabilita' `eve_attack_probability`, restituisce quel `pair_id` in `attacked_pair_ids`.
 
 Il `quantum-channel` allega `eve_applied=true` ai pair attaccati. Alice e Bob preservano questo flag nelle misure, il `classical-channel` lo mantiene nei subset riconciliati, e `sifting-bell-test` usa il flag per degradare le correlazioni.
 
-Strategia simbolica attuale: dopo aver generato gli outcome ideali del singoletto, se un round ha `eve_applied=true`, `sifting-bell-test` randomizza l'outcome di Bob. Questo rappresenta un attacco simbolico tipo intercettazione/perturbazione del canale quantistico, rompe la correlazione Alice/Bob, degrada i round di check e aumenta il QBER. Non e' ancora un modello fisico completo.
+Anche questi attacchi sono simbolici e controllati: servono a confrontare diverse perturbazioni intenzionali su CHSH, QBER e disponibilita' della chiave, non sono ancora una simulazione fisica completa di Eve.
 
 Classificazione:
 

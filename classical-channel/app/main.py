@@ -53,11 +53,13 @@ def reconcile(request: ReconcileRequest) -> dict:
             "bob_outcome": bob["outcome"],
             "noise_applied": alice.get("noise_applied", False) or bob.get("noise_applied", False),
             "noise_level": max(alice.get("noise_level", 0.0), bob.get("noise_level", 0.0)),
+            "noise_type": bob.get("noise_type", alice.get("noise_type", "bit_flip")),
             "eve_applied": alice.get("eve_applied", False) or bob.get("eve_applied", False),
             "eve_attack_probability": max(
                 alice.get("eve_attack_probability", 0.0),
                 bob.get("eve_attack_probability", 0.0),
             ),
+            "attack_type": bob.get("attack_type", alice.get("attack_type", "randomize")),
         }
         matched.append(item)
         basis_classification = classify_basis_pair(alice["basis"], bob["basis"])

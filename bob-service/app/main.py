@@ -47,8 +47,10 @@ def measure(request: MeasureRequest) -> dict:
                 "outcome": outcome,
                 "noise_applied": qubit.get("noise_applied", False),
                 "noise_level": qubit.get("noise_level", 0.0),
+                "noise_type": qubit.get("noise_type", "bit_flip"),
                 "eve_applied": qubit.get("eve_applied", False),
                 "eve_attack_probability": qubit.get("eve_attack_probability", 0.0),
+                "attack_type": qubit.get("attack_type", "randomize"),
             }
         )
     return {"session_id": request.session_id, "measurements": measurements}

@@ -1,5 +1,6 @@
 import logging
 import random
+from typing import Literal
 
 from fastapi import FastAPI
 from pydantic import BaseModel, Field
@@ -15,6 +16,7 @@ class AttackRequest(BaseModel):
     pairs: list[dict]
     eve_attack_probability: float = Field(default=0.0, ge=0.0, le=1.0)
     attack_probability: float | None = Field(default=None, ge=0.0, le=1.0)
+    attack_type: Literal["randomize", "intercept_resend"] = "randomize"
 
     def effective_attack_probability(self) -> float:
         return self.attack_probability if self.attack_probability is not None else self.eve_attack_probability
@@ -28,7 +30,12 @@ def health() -> dict[str, str]:
 @app.post("/attack")
 def attack(request: AttackRequest) -> dict:
     attack_probability = request.effective_attack_probability()
-    logger.info("Applying symbolic Eve attack probability %.3f to %s", attack_probability, request.session_id)
+    logger.info(
+        "Applying symbolic Eve %s attack probability %.3f to %s",
+        request.attack_type,
+        attack_probability,
+        request.session_id,
+    )
     attacked_pair_ids = [
         pair["pair_id"]
         for pair in request.pairs
@@ -37,6 +44,7 @@ def attack(request: AttackRequest) -> dict:
     return {
         "session_id": request.session_id,
         "eve_attack_probability": attack_probability,
+        "attack_type": request.attack_type,
         "eve_applied_count": len(attacked_pair_ids),
         "attacked_pair_ids": attacked_pair_ids,
     }

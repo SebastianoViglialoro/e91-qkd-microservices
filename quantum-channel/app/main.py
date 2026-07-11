@@ -1,5 +1,6 @@
 import logging
 import os
+from typing import Literal
 
 import httpx
 from fastapi import FastAPI, HTTPException
@@ -19,8 +20,10 @@ class Pair(BaseModel):
     state: str
     noise_applied: bool = False
     noise_level: float = 0.0
+    noise_type: Literal["bit_flip", "depolarizing"] = "bit_flip"
     eve_applied: bool = False
     eve_attack_probability: float = 0.0
+    attack_type: Literal["randomize", "intercept_resend"] = "randomize"
 
 
 class TransmitRequest(BaseModel):
@@ -28,8 +31,10 @@ class TransmitRequest(BaseModel):
     pairs: list[Pair]
     enable_noise: bool = False
     noise_level: float = Field(default=0.0, ge=0.0, le=1.0)
+    noise_type: Literal["bit_flip", "depolarizing"] = "bit_flip"
     enable_eve: bool = False
     eve_attack_probability: float = Field(default=0.0, ge=0.0, le=1.0)
+    attack_type: Literal["randomize", "intercept_resend"] = "randomize"
 
 
 @app.get("/health")
@@ -50,7 +55,12 @@ async def transmit(request: TransmitRequest) -> dict:
         if request.enable_noise:
             response = await client.post(
                 f"{NOISE_MODEL_URL}/apply-noise",
-                json={"session_id": request.session_id, "pairs": pairs, "noise_level": request.noise_level},
+                json={
+                    "session_id": request.session_id,
+                    "pairs": pairs,
+                    "noise_level": request.noise_level,
+                    "noise_type": request.noise_type,
+                },
             )
             if response.status_code >= 400:
                 raise HTTPException(status_code=502, detail=response.text)
@@ -58,11 +68,13 @@ async def transmit(request: TransmitRequest) -> dict:
             disturbed_pair_ids = noise_result["disturbed_pair_ids"]
             disturbed_pair_id_set = set(disturbed_pair_ids)
             noise_applied_count = noise_result["noise_applied_count"]
+            noise_type = noise_result.get("noise_type", request.noise_type)
             pairs = [
                 {
                     **pair,
                     "noise_applied": pair["pair_id"] in disturbed_pair_id_set,
                     "noise_level": request.noise_level,
+                    "noise_type": noise_type,
                 }
                 for pair in pairs
             ]
@@ -74,6 +86,7 @@ async def transmit(request: TransmitRequest) -> dict:
                     "session_id": request.session_id,
                     "pairs": pairs,
                     "eve_attack_probability": request.eve_attack_probability,
+                    "attack_type": request.attack_type,
                 },
             )
             if response.status_code >= 400:
@@ -82,11 +95,13 @@ async def transmit(request: TransmitRequest) -> dict:
             attacked_pair_ids = eve_result["attacked_pair_ids"]
             attacked_pair_id_set = set(attacked_pair_ids)
             eve_applied_count = eve_result["eve_applied_count"]
+            attack_type = eve_result.get("attack_type", request.attack_type)
             pairs = [
                 {
                     **pair,
                     "eve_applied": pair["pair_id"] in attacked_pair_id_set,
                     "eve_attack_probability": request.eve_attack_probability,
+                    "attack_type": attack_type,
                 }
                 for pair in pairs
             ]
@@ -99,9 +114,11 @@ async def transmit(request: TransmitRequest) -> dict:
         "alice_qubits": alice_qubits,
         "bob_qubits": bob_qubits,
         "noise_level": request.noise_level,
+        "noise_type": request.noise_type,
         "noise_applied_count": noise_applied_count,
         "disturbed_pair_ids": disturbed_pair_ids,
         "eve_attack_probability": request.eve_attack_probability,
+        "attack_type": request.attack_type,
         "eve_applied_count": eve_applied_count,
         "attacked_pair_ids": attacked_pair_ids,
     }
