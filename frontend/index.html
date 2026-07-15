@@ -50,10 +50,29 @@
             <span>eve_attack_probability</span>
             <input id="eve-attack-probability" name="eve_attack_probability" type="number" min="0" max="1" step="0.01" value="0.00">
           </label>
+          <label class="toggle-row">
+            <input id="enable-link-loss" name="enable_link_loss" type="checkbox" checked>
+            <span>enable_link_loss</span>
+          </label>
+          <label class="field">
+            <span>Source → Alice distance km</span>
+            <input id="source-alice-distance-km" name="source_alice_distance_km" type="number" min="0" step="1" value="25">
+          </label>
+          <label class="field">
+            <span>Source → Bob distance km</span>
+            <input id="source-bob-distance-km" name="source_bob_distance_km" type="number" min="0" step="1" value="25">
+          </label>
+          <label class="field">
+            <span>attenuation dB/km</span>
+            <input id="attenuation-db-per-km" name="attenuation_db_per_km" type="number" min="0" step="0.01" value="0.02">
+          </label>
           <div class="scenario-buttons">
             <button type="button" class="button button-secondary scenario-button" data-scenario="baseline">Baseline</button>
             <button type="button" class="button button-secondary scenario-button" data-scenario="degraded">Noise 0.10</button>
             <button type="button" class="button button-secondary scenario-button" data-scenario="insecure">Noise 0.25</button>
+            <button type="button" class="button button-secondary scenario-button" data-scenario="link-nominal">Link 1 dB</button>
+            <button type="button" class="button button-secondary scenario-button" data-scenario="link-degraded">Link 6 dB</button>
+            <button type="button" class="button button-secondary scenario-button" data-scenario="link-critical">Link 8 dB</button>
           </div>
           <button id="run-button" class="button button-primary" type="submit">Run Simulation</button>
         </form>
@@ -145,6 +164,7 @@
             <span><i class="legend-dot legend-alice"></i>Alice</span>
             <span><i class="legend-dot legend-bob"></i>Bob</span>
             <span><i class="legend-dot legend-eve"></i>Eve</span>
+            <span><i class="legend-dot legend-loss"></i>link loss status</span>
             <span><i class="legend-dot legend-key"></i>estimated key material</span>
           </div>
         </div>
@@ -205,6 +225,8 @@
                 <th>security</th>
                 <th>key</th>
                 <th>final_key_length</th>
+                <th>loss dB</th>
+                <th>link</th>
                 <th>noise</th>
                 <th>eve</th>
               </tr>
@@ -242,6 +264,10 @@
           <div class="chart-box">
             <h3>QBER latest sessions</h3>
             <canvas id="qber-chart"></canvas>
+          </div>
+          <div class="chart-box">
+            <h3>total link loss latest sessions</h3>
+            <canvas id="loss-chart"></canvas>
           </div>
           <div class="chart-box">
             <h3>Key status counts</h3>

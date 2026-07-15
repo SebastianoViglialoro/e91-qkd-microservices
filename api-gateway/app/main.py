@@ -29,6 +29,12 @@ RESULT_STORE_URL = os.getenv("RESULT_STORE_URL", "http://result-store:8011")
 
 class SimulationRequest(BaseModel):
     shots: int = Field(default=1000, gt=0)
+    enable_link_loss: bool = True
+    source_alice_distance_km: float = Field(default=25.0, ge=0.0)
+    source_bob_distance_km: float = Field(default=25.0, ge=0.0)
+    attenuation_db_per_km: float = Field(default=0.02, ge=0.0)
+    loss_degraded_threshold_db: float = Field(default=5.0, ge=0.0)
+    loss_critical_threshold_db: float = Field(default=7.0, ge=0.0)
     enable_noise: bool = False
     noise_level: float = Field(default=0.0, ge=0.0, le=1.0)
     noise_type: Literal["bit_flip", "depolarizing"] = "bit_flip"

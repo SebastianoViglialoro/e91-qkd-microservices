@@ -2,6 +2,8 @@ const API_GATEWAY_URL = "http://localhost:18000";
 const BASIS_MODEL = "TWO_KEY_BASES_ONE_CHECK_BASIS";
 const AUTO_REFRESH_MS = 15000;
 const TSIRELSON_BOUND = 2.8284271247461903;
+const LOSS_DEGRADED_THRESHOLD_DB = 5.0;
+const LOSS_CRITICAL_THRESHOLD_DB = 7.0;
 
 const state = {
   latestResult: null,
@@ -58,6 +60,10 @@ function bindDom() {
   dom.inputNoiseLevel = document.getElementById("noise-level");
   dom.inputEnableEve = document.getElementById("enable-eve");
   dom.inputEveAttackProbability = document.getElementById("eve-attack-probability");
+  dom.inputEnableLinkLoss = document.getElementById("enable-link-loss");
+  dom.inputSourceAliceDistanceKm = document.getElementById("source-alice-distance-km");
+  dom.inputSourceBobDistanceKm = document.getElementById("source-bob-distance-km");
+  dom.inputAttenuationDbPerKm = document.getElementById("attenuation-db-per-km");
 }
 
 function bindEvents() {
@@ -80,15 +86,76 @@ function bindEvents() {
 
 function applyScenario(scenario) {
   const presets = {
-    baseline: { enable_noise: false, noise_level: 0, enable_eve: false, eve_attack_probability: 0 },
-    degraded: { enable_noise: true, noise_level: 0.10, enable_eve: false, eve_attack_probability: 0 },
-    insecure: { enable_noise: true, noise_level: 0.25, enable_eve: false, eve_attack_probability: 0 },
+    baseline: {
+      enable_noise: false,
+      noise_level: 0,
+      enable_eve: false,
+      eve_attack_probability: 0,
+      enable_link_loss: true,
+      source_alice_distance_km: 25,
+      source_bob_distance_km: 25,
+      attenuation_db_per_km: 0.02,
+    },
+    degraded: {
+      enable_noise: true,
+      noise_level: 0.10,
+      enable_eve: false,
+      eve_attack_probability: 0,
+      enable_link_loss: true,
+      source_alice_distance_km: 25,
+      source_bob_distance_km: 25,
+      attenuation_db_per_km: 0.02,
+    },
+    insecure: {
+      enable_noise: true,
+      noise_level: 0.25,
+      enable_eve: false,
+      eve_attack_probability: 0,
+      enable_link_loss: true,
+      source_alice_distance_km: 25,
+      source_bob_distance_km: 25,
+      attenuation_db_per_km: 0.02,
+    },
+    "link-nominal": {
+      enable_noise: false,
+      noise_level: 0,
+      enable_eve: false,
+      eve_attack_probability: 0,
+      enable_link_loss: true,
+      source_alice_distance_km: 25,
+      source_bob_distance_km: 25,
+      attenuation_db_per_km: 0.02,
+    },
+    "link-degraded": {
+      enable_noise: false,
+      noise_level: 0,
+      enable_eve: false,
+      eve_attack_probability: 0,
+      enable_link_loss: true,
+      source_alice_distance_km: 150,
+      source_bob_distance_km: 150,
+      attenuation_db_per_km: 0.02,
+    },
+    "link-critical": {
+      enable_noise: false,
+      noise_level: 0,
+      enable_eve: false,
+      eve_attack_probability: 0,
+      enable_link_loss: true,
+      source_alice_distance_km: 200,
+      source_bob_distance_km: 200,
+      attenuation_db_per_km: 0.02,
+    },
   };
   const preset = presets[scenario] || presets.baseline;
-  document.getElementById("enable-noise").checked = preset.enable_noise;
-  document.getElementById("noise-level").value = preset.noise_level.toFixed(2);
-  document.getElementById("enable-eve").checked = preset.enable_eve;
-  document.getElementById("eve-attack-probability").value = preset.eve_attack_probability.toFixed(2);
+  dom.inputEnableNoise.checked = preset.enable_noise;
+  dom.inputNoiseLevel.value = preset.noise_level.toFixed(2);
+  dom.inputEnableEve.checked = preset.enable_eve;
+  dom.inputEveAttackProbability.value = preset.eve_attack_probability.toFixed(2);
+  dom.inputEnableLinkLoss.checked = preset.enable_link_loss;
+  dom.inputSourceAliceDistanceKm.value = String(preset.source_alice_distance_km);
+  dom.inputSourceBobDistanceKm.value = String(preset.source_bob_distance_km);
+  dom.inputAttenuationDbPerKm.value = preset.attenuation_db_per_km.toFixed(2);
   renderLivePreview();
   logEvent(`scenario applied: ${scenario}`, "ok");
 }
@@ -204,11 +271,13 @@ function renderLivePreview() {
 function estimateScenario(payload) {
   const noise = payload.enable_noise ? clampNumber(payload.noise_level, 0, 1) : 0;
   const eve = payload.enable_eve ? clampNumber(payload.eve_attack_probability, 0, 1) : 0;
+  const link = computeLinkPreview(payload);
   const qber = clampNumber(1 - (1 - noise) * (1 - eve * 0.5), 0, 1);
   const chshNoiseFactor = Math.max(0, 1 - 2 * noise);
   const chshEveFactor = Math.max(0, 1 - eve);
   const absChsh = Math.max(0, TSIRELSON_BOUND * chshNoiseFactor * chshEveFactor);
-  const keySubsetEstimate = Math.round(payload.shots * (2 / 9));
+  const effectiveShots = Math.max(0, Math.round(payload.shots - link.lost_pair_estimate));
+  const keySubsetEstimate = Math.round(effectiveShots * (2 / 9));
   const cleanKeyEstimate = Math.max(0, Math.round(keySubsetEstimate * (1 - qber)));
   const securityStatus = classifyPreview(absChsh, qber);
   const finalKeyEstimate = securityStatus === "secure" && cleanKeyEstimate > 0 ? 256 : 0;
@@ -217,6 +286,8 @@ function estimateScenario(payload) {
     ...payload,
     noise,
     eve,
+    ...link,
+    effective_shots_estimate: effectiveShots,
     qber,
     abs_chsh: absChsh,
     raw_key_estimate: keySubsetEstimate,
@@ -225,6 +296,36 @@ function estimateScenario(payload) {
     security_status: securityStatus,
     status_color: statusColor(securityStatus),
   };
+}
+
+function computeLinkPreview(payload) {
+  const aliceDistance = clampNumber(payload.source_alice_distance_km, 0, Number.MAX_SAFE_INTEGER);
+  const bobDistance = clampNumber(payload.source_bob_distance_km, 0, Number.MAX_SAFE_INTEGER);
+  const attenuation = clampNumber(payload.attenuation_db_per_km, 0, Number.MAX_SAFE_INTEGER);
+  const aliceLoss = aliceDistance * attenuation;
+  const bobLoss = bobDistance * attenuation;
+  const totalLoss = aliceLoss + bobLoss;
+  const transmittance = Math.pow(10, -totalLoss / 10);
+  const linkStatus = classifyLinkStatus(totalLoss);
+  const lostPairEstimate = payload.enable_link_loss
+    ? Math.round(payload.shots * (1 - transmittance))
+    : 0;
+
+  return {
+    alice_loss_db: aliceLoss,
+    bob_loss_db: bobLoss,
+    total_quantum_loss_db: totalLoss,
+    transmittance,
+    link_status: linkStatus,
+    lost_pair_estimate: lostPairEstimate,
+    link_color: linkStatusColor(linkStatus),
+  };
+}
+
+function classifyLinkStatus(totalLossDb) {
+  if (totalLossDb >= LOSS_CRITICAL_THRESHOLD_DB) return "critical";
+  if (totalLossDb >= LOSS_DEGRADED_THRESHOLD_DB) return "degraded";
+  return "nominal";
 }
 
 function classifyPreview(absChsh, qber) {
@@ -253,11 +354,35 @@ function drawProtocolCanvas(timestamp) {
   const eve = { x: width * 0.43, y: height * 0.16, label: "Eve", sublabel: preview.enable_eve ? `attack ${formatNumber(preview.eve, 2)}` : "disabled", color: "#ff3d3d" };
   const noise = { x: width * 0.43, y: height * 0.82, label: "Noise", sublabel: preview.enable_noise ? `level ${formatNumber(preview.noise, 2)}` : "disabled", color: "#ffb300" };
   const kms = { x: width * 0.88, y: height * 0.49, label: "Mini KMS", sublabel: `${preview.clean_key_estimate} clean bits`, color: preview.status_color };
+  const linkColor = preview.enable_link_loss ? preview.link_color : "#8b949e";
 
-  drawLink(ctx, source, alice, "#00e5ff", 0.75);
-  drawLink(ctx, source, bob, "#39ff14", 0.75);
+  drawLink(ctx, source, alice, linkColor, 0.8);
+  drawLink(ctx, source, bob, linkColor, 0.8);
   drawLink(ctx, alice, kms, preview.status_color, 0.45);
   drawLink(ctx, bob, kms, preview.status_color, 0.45);
+  drawLinkLabel(
+    ctx,
+    source,
+    alice,
+    `${formatNumber(preview.source_alice_distance_km, 0)} km | ${formatNumber(preview.alice_loss_db, 2)} dB`,
+    linkColor,
+    -14,
+  );
+  drawLinkLabel(
+    ctx,
+    source,
+    bob,
+    `${formatNumber(preview.source_bob_distance_km, 0)} km | ${formatNumber(preview.bob_loss_db, 2)} dB`,
+    linkColor,
+    16,
+  );
+  drawCanvasTag(
+    ctx,
+    width * 0.36,
+    height * 0.49,
+    `${formatNumber(preview.total_quantum_loss_db, 2)} dB | ${preview.link_status}`,
+    linkColor,
+  );
 
   if (preview.enable_eve) {
     drawLink(ctx, eve, source, "#ff3d3d", 0.7, true);
@@ -294,6 +419,31 @@ function drawLink(ctx, from, to, color, alpha = 1, dashed = false) {
   const midX = (from.x + to.x) / 2;
   ctx.bezierCurveTo(midX, from.y, midX, to.y, to.x, to.y);
   ctx.stroke();
+  ctx.restore();
+}
+
+function drawLinkLabel(ctx, from, to, text, color, offsetY = 0) {
+  const midX = (from.x + to.x) / 2;
+  const midY = (from.y + to.y) / 2 + offsetY;
+  drawCanvasTag(ctx, midX, midY, text, color);
+}
+
+function drawCanvasTag(ctx, x, y, text, color) {
+  ctx.save();
+  ctx.font = "700 10px ui-monospace, SFMono-Regular, Menlo, monospace";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  const width = ctx.measureText(text).width + 16;
+  const height = 22;
+  ctx.fillStyle = "rgba(13, 17, 23, 0.9)";
+  ctx.strokeStyle = colorWithAlpha(color, 0.7);
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  roundedRect(ctx, x - width / 2, y - height / 2, width, height, 6);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = color;
+  ctx.fillText(text, x, y + 0.5);
   ctx.restore();
 }
 
@@ -358,7 +508,7 @@ function drawSideNode(ctx, node, active) {
 }
 
 function drawPreviewStats(ctx, preview, width, height) {
-  const boxWidth = Math.min(250, width * 0.34);
+  const boxWidth = Math.min(285, width * 0.38);
   const x = Math.max(12, width - boxWidth - 12);
   const y = 12;
   ctx.save();
@@ -366,7 +516,7 @@ function drawPreviewStats(ctx, preview, width, height) {
   ctx.strokeStyle = colorWithAlpha(preview.status_color, 0.65);
   ctx.lineWidth = 1;
   ctx.beginPath();
-  roundedRect(ctx, x, y, boxWidth, 94, 8);
+  roundedRect(ctx, x, y, boxWidth, 136, 8);
   ctx.fill();
   ctx.stroke();
   ctx.fillStyle = preview.status_color;
@@ -377,6 +527,12 @@ function drawPreviewStats(ctx, preview, width, height) {
   ctx.fillText(`abs_chsh ~= ${formatNumber(preview.abs_chsh, 3)}`, x + 12, y + 43);
   ctx.fillText(`qber ~= ${formatNumber(preview.qber, 3)}`, x + 12, y + 61);
   ctx.fillText(`raw key ~= ${preview.raw_key_estimate}`, x + 12, y + 79);
+  ctx.fillStyle = preview.link_color;
+  ctx.fillText(`loss ~= ${formatNumber(preview.total_quantum_loss_db, 2)} dB (${preview.link_status})`, x + 12, y + 98);
+  ctx.fillText(`lost pairs ~= ${preview.lost_pair_estimate}`, x + 12, y + 116);
+  ctx.fillStyle = "#8b949e";
+  ctx.font = "9px ui-monospace, SFMono-Regular, Menlo, monospace";
+  ctx.fillText("heuristic preview only", x + 12, y + 130);
   ctx.restore();
 }
 
@@ -399,6 +555,13 @@ function statusColor(status) {
   if (normalized === "degraded") return "#ffb300";
   if (normalized === "insecure" || normalized === "error") return "#ff3d3d";
   return "#00e5ff";
+}
+
+function linkStatusColor(status) {
+  const value = String(status || "").toLowerCase();
+  if (value === "critical") return "#ff3d3d";
+  if (value === "degraded") return "#ffb300";
+  return "#39ff14";
 }
 
 function colorWithAlpha(hex, alpha) {
@@ -436,12 +599,21 @@ function readSimulationPayload() {
   const shots = clampNumber(readNumber("shots", 10000), 1, Number.MAX_SAFE_INTEGER);
   const noiseLevel = clampNumber(readNumber("noise-level", 0), 0, 1);
   const eveAttackProbability = clampNumber(readNumber("eve-attack-probability", 0), 0, 1);
+  const sourceAliceDistanceKm = clampNumber(readNumber("source-alice-distance-km", 25), 0, Number.MAX_SAFE_INTEGER);
+  const sourceBobDistanceKm = clampNumber(readNumber("source-bob-distance-km", 25), 0, Number.MAX_SAFE_INTEGER);
+  const attenuationDbPerKm = clampNumber(readNumber("attenuation-db-per-km", 0.02), 0, Number.MAX_SAFE_INTEGER);
   return {
     shots,
-    enable_noise: document.getElementById("enable-noise").checked,
+    enable_noise: dom.inputEnableNoise.checked,
     noise_level: noiseLevel,
-    enable_eve: document.getElementById("enable-eve").checked,
+    enable_eve: dom.inputEnableEve.checked,
     eve_attack_probability: eveAttackProbability,
+    enable_link_loss: dom.inputEnableLinkLoss.checked,
+    source_alice_distance_km: sourceAliceDistanceKm,
+    source_bob_distance_km: sourceBobDistanceKm,
+    attenuation_db_per_km: attenuationDbPerKm,
+    loss_degraded_threshold_db: LOSS_DEGRADED_THRESHOLD_DB,
+    loss_critical_threshold_db: LOSS_CRITICAL_THRESHOLD_DB,
   };
 }
 
@@ -457,6 +629,7 @@ function clampNumber(value, min, max) {
 function extractSimulation(result) {
   const evaluation = result?.sifting_bell_test || result?.evaluation || {};
   const key = result?.key || result?.key_processing || {};
+  const link = result?.link_metrics || result?.transmission?.link_metrics || {};
   return {
     session_id: result?.session_id,
     basis_model: evaluation.basis_model || result?.basis_model || BASIS_MODEL,
@@ -474,6 +647,13 @@ function extractSimulation(result) {
     final_key: key.final_key,
     hash_function: key.hash_function,
     privacy_amplification: key.privacy_amplification,
+    total_quantum_loss_db: link.total_quantum_loss_db,
+    transmittance: link.transmittance,
+    link_status: link.link_status,
+    lost_pair_count: link.lost_pair_count,
+    source_alice_distance_km: link.source_alice_distance_km,
+    source_bob_distance_km: link.source_bob_distance_km,
+    attenuation_db_per_km: link.attenuation_db_per_km,
   };
 }
 
@@ -496,6 +676,13 @@ function renderLatestResult(result) {
     ["key_subset_size", item.key_subset_size],
     ["bell_subset_size", item.bell_subset_size],
     ["discarded_subset_size", item.discarded_subset_size],
+    ["total_quantum_loss_db", formatNumber(item.total_quantum_loss_db, 2)],
+    ["transmittance", formatNumber(item.transmittance, 4)],
+    ["link_status", badgeText(item.link_status)],
+    ["lost_pair_count", item.lost_pair_count],
+    ["source_alice_distance_km", formatNumber(item.source_alice_distance_km, 1)],
+    ["source_bob_distance_km", formatNumber(item.source_bob_distance_km, 1)],
+    ["attenuation_db_per_km", formatNumber(item.attenuation_db_per_km, 4)],
     ["raw_key_length", item.raw_key_length],
     ["sifted_key_length", item.sifted_key_length],
     ["final_key_length", item.final_key_length],
@@ -522,6 +709,10 @@ function renderEmptyResult() {
       ["qber", "N/A"],
       ["security_status", "N/A"],
       ["key_status", "N/A"],
+      ["total_quantum_loss_db", "N/A"],
+      ["transmittance", "N/A"],
+      ["link_status", "N/A"],
+      ["lost_pair_count", "N/A"],
       ["final_key", "N/A"],
     ],
     "result-item",
@@ -553,7 +744,7 @@ function renderKmsTable(records) {
   dom.kmsTableBody.innerHTML = "";
   if (!records.length) {
     const row = document.createElement("tr");
-    row.innerHTML = `<td class="table-empty" colspan="9">No key records yet. Run a simulation to populate the repository.</td>`;
+    row.innerHTML = `<td class="table-empty" colspan="11">No key records yet. Run a simulation to populate the repository.</td>`;
     dom.kmsTableBody.appendChild(row);
     return;
   }
@@ -570,6 +761,8 @@ function renderKmsTable(records) {
       <td>${badgeHtml(record.security_status)}</td>
       <td>${badgeHtml(record.key_status)}</td>
       <td>${escapeHtml(safe(record.final_key_length))}</td>
+      <td>${escapeHtml(formatNumber(record.total_quantum_loss_db, 2))}</td>
+      <td>${badgeHtml(record.link_status)}</td>
       <td>${escapeHtml(formatNumber(record.noise_level, 2))}</td>
       <td>${escapeHtml(formatNumber(record.eve_attack_probability, 2))}</td>
     `;
@@ -593,6 +786,11 @@ function renderKeyDetail(record) {
     ["final_key_length", record.final_key_length],
     ["final_key", maskKey(record.final_key)],
     ["key_reason", record.key_reason],
+    ["source_alice_distance_km", formatNumber(record.source_alice_distance_km, 1)],
+    ["source_bob_distance_km", formatNumber(record.source_bob_distance_km, 1)],
+    ["total_quantum_loss_db", formatNumber(record.total_quantum_loss_db, 2)],
+    ["transmittance", formatNumber(record.transmittance, 4)],
+    ["link_status", record.link_status],
     ["noise_enabled", record.noise_enabled],
     ["noise_level", formatNumber(record.noise_level, 2)],
     ["eve_enabled", record.eve_enabled],
@@ -608,6 +806,7 @@ function renderCharts(records, summary) {
   const labels = ordered.map((record) => shortSession(record.session_id));
   const chshValues = ordered.map((record) => numericOrNull(record.abs_chsh));
   const qberValues = ordered.map((record) => numericOrNull(record.qber));
+  const lossValues = ordered.map((record) => numericOrNull(record.total_quantum_loss_db));
   const generated = Number(summary?.generated_keys || 0);
   const degraded = Number(summary?.discarded_degraded || 0);
   const discarded = Number(summary?.discarded_insecure || 0);
@@ -635,6 +834,19 @@ function renderCharts(records, summary) {
     referenceLines: [
       { value: 0.08, color: "#ffb300", label: "0.08" },
       { value: 0.15, color: "#ff3d3d", label: "0.15" },
+    ],
+  });
+
+  drawLineChart("loss-chart", {
+    labels,
+    values: lossValues,
+    color: "#ffb300",
+    label: "total_quantum_loss_db",
+    min: 0,
+    max: Math.max(8, ...lossValues.filter((value) => value !== null)),
+    referenceLines: [
+      { value: LOSS_DEGRADED_THRESHOLD_DB, color: "#ffb300", label: "5 dB" },
+      { value: LOSS_CRITICAL_THRESHOLD_DB, color: "#ff3d3d", label: "7 dB" },
     ],
   });
 
@@ -888,11 +1100,11 @@ function badgeText(value) {
 function badgeHtml(value) {
   const text = safe(value);
   const lower = text.toLowerCase();
-  const cls = lower.includes("generated") || lower.includes("secure")
+  const cls = lower.includes("generated") || lower.includes("secure") || lower.includes("nominal")
     ? "mini-secure"
     : lower.includes("degraded")
       ? "mini-degraded"
-      : lower.includes("discarded") || lower.includes("insecure")
+      : lower.includes("discarded") || lower.includes("insecure") || lower.includes("critical")
         ? "mini-insecure"
         : "";
   return `<span class="mini-badge ${cls}">${escapeHtml(text)}</span>`;

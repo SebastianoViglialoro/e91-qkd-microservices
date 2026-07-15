@@ -272,27 +272,34 @@ Endpoint usati:
 
 Pannelli principali:
 
-- `Simulation Settings`, per configurare shots, rumore ed Eve;
-- `Protocol View`, vista dinamica del flusso E91 con Source, Quantum Channel, Alice/Bob, Noise, Eve, Classical Channel, Bell Test, Key Processing e Mini KMS;
-- `Latest Simulation Result`, con CHSH, QBER, security status e key status;
+- `Simulation Settings`, per configurare shots, rumore, Eve, distanza Source-Alice, distanza Source-Bob, attenuazione dB/km ed eventuale link loss;
+- `Protocol View`, vista dinamica del flusso E91 con Source, Quantum Channel, Alice/Bob, Noise, Eve, Classical Channel, Bell Test, Key Processing e Mini KMS; sul canvas vengono mostrate anche distanza, perdita in dB e stato del link;
+- `Latest Simulation Result`, con CHSH, QBER, security status, key status e metriche `link_metrics`;
 - `Key Summary`, con statistiche aggregate del repository chiavi;
-- `Mini KMS / Key Repository`, tabella delle ultime sessioni;
-- `Recent Charts`, con grafici canvas nativi per preview chiave, `abs_CHSH`, QBER e conteggio delle chiavi;
+- `Mini KMS / Key Repository`, tabella delle ultime sessioni con perdita totale e `link_status`;
+- `Recent Charts`, con grafici canvas nativi per preview chiave, `abs_CHSH`, QBER, perdita totale di link e conteggio delle chiavi;
 - `Logs / Session History`, con eventi client ed errori.
 
 Il mini KMS resta un repository dimostrativo, non un KMS industriale. Serve a mostrare come rumore ed Eve influenzano la disponibilita' delle chiavi. I key record sintetici vengono persistiti in `data/key-records.json` quando il servizio gira con Docker Compose; la cartella `data/` e' ignorata da Git per evitare di committare materiale runtime.
 
 La dashboard include anche:
 
-- pulsanti scenario per baseline, degraded e insecure;
+- pulsanti scenario per baseline, degraded/insecure via noise e link nominal/degraded/critical;
 - grafico canvas dinamico con Entangled Source, Alice, Bob, Eve, Noise e Mini KMS;
-- preview live dei parametri: Eve, noise, shots e probabilita' di attacco aggiornano subito colori, link e stima della chiave;
+- preview live dei parametri: Eve, noise, shots, distanze e attenuazione aggiornano subito colori, link, perdita stimata, coppie perse e stima della chiave;
 - grafico live della chiave stimata dai controlli correnti;
 - animazione leggera del canale quantistico durante le run e nella vista E91;
 - refresh automatico ogni 15 secondi;
 - dettaglio sessione cliccando una riga del Mini KMS.
 
-La preview live serve solo per rendere interattiva la dashboard mentre si modificano i parametri. I valori ufficiali della simulazione restano quelli restituiti dai microservizi dopo `POST /simulations` e salvati nel mini KMS.
+La preview live serve solo per rendere interattiva la dashboard mentre si modificano i parametri. Per il link calcola euristicamente:
+
+```text
+loss_db = distance_km * attenuation_db_per_km
+transmittance = 10 ** (-total_quantum_loss_db / 10)
+```
+
+I valori ufficiali della simulazione restano quelli restituiti dai microservizi dopo `POST /simulations` e salvati nel mini KMS.
 
 La dashboard gira su `localhost:5173` e chiama `localhost:18000`; per questo l'API Gateway abilita CORS solo per:
 
@@ -336,6 +343,57 @@ Per controllare se le dipendenze Qiskit sono disponibili nel container:
 ```bash
 curl http://localhost:8009/qiskit-health
 ```
+
+## Link distance e attenuation
+
+La richiesta di simulazione supporta un modello dimostrativo di distanza e attenuazione dei link quantistici:
+
+```json
+{
+  "shots": 10000,
+  "enable_link_loss": true,
+  "source_alice_distance_km": 25.0,
+  "source_bob_distance_km": 25.0,
+  "attenuation_db_per_km": 0.02,
+  "loss_degraded_threshold_db": 5.0,
+  "loss_critical_threshold_db": 7.0
+}
+```
+
+Il modello calcola:
+
+```text
+alice_loss_db = source_alice_distance_km * attenuation_db_per_km
+bob_loss_db = source_bob_distance_km * attenuation_db_per_km
+total_quantum_loss_db = alice_loss_db + bob_loss_db
+transmittance = 10 ** (-total_quantum_loss_db / 10)
+```
+
+Classificazione del link:
+
+- `nominal`: `total_quantum_loss_db < loss_degraded_threshold_db`
+- `degraded`: `loss_degraded_threshold_db <= total_quantum_loss_db < loss_critical_threshold_db`
+- `critical`: `total_quantum_loss_db >= loss_critical_threshold_db`
+
+La perdita di link non e' rumore: non aumenta direttamente QBER e non modifica direttamente CHSH. Viene applicata nel `quantum-channel` marcando alcuni `pair_id` come persi con probabilita' `1 - transmittance`. I pair persi non vengono inviati ad Alice/Bob, non entrano in `key_subset` o `bell_subset`, e vengono contati nel `discarded_subset` come `link_loss`.
+
+Se `enable_link_loss=false`, la metrica viene comunque calcolata, ma non vengono persi pair e il comportamento resta compatibile con le versioni precedenti.
+
+Il risultato finale include `link_metrics`:
+
+- `source_alice_distance_km`
+- `source_bob_distance_km`
+- `attenuation_db_per_km`
+- `alice_loss_db`
+- `bob_loss_db`
+- `total_quantum_loss_db`
+- `transmittance`
+- `link_status`
+- `lost_pair_count`
+- `loss_degraded_threshold_db`
+- `loss_critical_threshold_db`
+
+Il Mini KMS salva anche `source_alice_distance_km`, `source_bob_distance_km`, `total_quantum_loss_db`, `link_status` e `transmittance`.
 
 ## Noise Model
 

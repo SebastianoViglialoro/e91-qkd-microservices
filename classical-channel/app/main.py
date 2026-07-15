@@ -1,7 +1,7 @@
 import logging
 
 from fastapi import FastAPI
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from shared.bases import (
     ALICE_BASIS_NAMES,
     BASIS_MODEL,
@@ -19,6 +19,7 @@ class ReconcileRequest(BaseModel):
     session_id: str
     alice_measurements: list[dict]
     bob_measurements: list[dict]
+    lost_pairs: list[dict] = Field(default_factory=list)
 
 
 @app.get("/health")
@@ -33,7 +34,15 @@ def reconcile(request: ReconcileRequest) -> dict:
     matched = []
     key_subset = []
     bell_subset = []
-    discarded_subset = []
+    discarded_subset = [
+        {
+            "session_id": request.session_id,
+            "pair_id": lost_pair.get("pair_id"),
+            "reason": lost_pair.get("reason", "link_loss"),
+            "lost": True,
+        }
+        for lost_pair in request.lost_pairs
+    ]
 
     for alice in request.alice_measurements:
         bob = bob_by_pair.get(alice["pair_id"])

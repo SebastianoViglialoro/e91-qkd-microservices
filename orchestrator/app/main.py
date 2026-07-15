@@ -24,6 +24,12 @@ RESULT_STORE_URL = os.getenv("RESULT_STORE_URL", "http://result-store:8011")
 
 class RunSessionRequest(BaseModel):
     shots: int = Field(default=1000, gt=0)
+    enable_link_loss: bool = True
+    source_alice_distance_km: float = Field(default=25.0, ge=0.0)
+    source_bob_distance_km: float = Field(default=25.0, ge=0.0)
+    attenuation_db_per_km: float = Field(default=0.02, ge=0.0)
+    loss_degraded_threshold_db: float = Field(default=5.0, ge=0.0)
+    loss_critical_threshold_db: float = Field(default=7.0, ge=0.0)
     enable_noise: bool = False
     noise_level: float = Field(default=0.0, ge=0.0, le=1.0)
     noise_type: Literal["bit_flip", "depolarizing"] = "bit_flip"
@@ -62,6 +68,12 @@ async def run_session(request: RunSessionRequest) -> dict:
             {
                 "session_id": session_id,
                 "pairs": source["pairs"],
+                "enable_link_loss": request.enable_link_loss,
+                "source_alice_distance_km": request.source_alice_distance_km,
+                "source_bob_distance_km": request.source_bob_distance_km,
+                "attenuation_db_per_km": request.attenuation_db_per_km,
+                "loss_degraded_threshold_db": request.loss_degraded_threshold_db,
+                "loss_critical_threshold_db": request.loss_critical_threshold_db,
                 "enable_noise": request.enable_noise,
                 "noise_level": request.noise_level,
                 "noise_type": request.noise_type,
@@ -87,6 +99,7 @@ async def run_session(request: RunSessionRequest) -> dict:
                 "session_id": session_id,
                 "alice_measurements": alice["measurements"],
                 "bob_measurements": bob["measurements"],
+                "lost_pairs": transmitted.get("lost_pairs", []),
             },
         )
         evaluation = await post_json(
@@ -106,6 +119,8 @@ async def run_session(request: RunSessionRequest) -> dict:
             "source": {"pair_count": len(source["pairs"])},
             "transmission": {
                 "pair_count": len(transmitted["pairs"]),
+                "delivered_pair_count": len(transmitted["alice_qubits"]),
+                "lost_pair_count": transmitted.get("link_metrics", {}).get("lost_pair_count", 0),
                 "noise_enabled": request.enable_noise,
                 "noise_level": request.noise_level,
                 "noise_type": request.noise_type,
@@ -115,6 +130,7 @@ async def run_session(request: RunSessionRequest) -> dict:
                 "attack_type": request.attack_type,
                 "eve_applied_count": transmitted.get("eve_applied_count", 0),
             },
+            "link_metrics": transmitted.get("link_metrics", {}),
             "sifting_bell_test": evaluation,
             "key": key,
         }

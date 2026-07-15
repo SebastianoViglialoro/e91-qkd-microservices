@@ -6,7 +6,7 @@ from pathlib import Path
 from statistics import mean
 
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 logger = logging.getLogger("result-store")
@@ -22,6 +22,7 @@ class Result(BaseModel):
     request: dict
     source: dict
     transmission: dict
+    link_metrics: dict = Field(default_factory=dict)
     sifting_bell_test: dict
     key: dict
 
@@ -34,6 +35,7 @@ def build_key_record(result: dict) -> dict:
     session_id = result["session_id"]
     request = result.get("request", {})
     transmission = result.get("transmission", {})
+    link_metrics = result.get("link_metrics", {})
     evaluation = result.get("sifting_bell_test", {})
     key = result.get("key", {})
     key_status = key.get("key_status")
@@ -67,6 +69,17 @@ def build_key_record(result: dict) -> dict:
             "attack_type",
             evaluation.get("attack_type", request.get("attack_type", "randomize")),
         ),
+        "source_alice_distance_km": link_metrics.get(
+            "source_alice_distance_km",
+            request.get("source_alice_distance_km"),
+        ),
+        "source_bob_distance_km": link_metrics.get(
+            "source_bob_distance_km",
+            request.get("source_bob_distance_km"),
+        ),
+        "total_quantum_loss_db": link_metrics.get("total_quantum_loss_db"),
+        "link_status": link_metrics.get("link_status"),
+        "transmittance": link_metrics.get("transmittance"),
         "privacy_amplification": key.get("privacy_amplification"),
         "hash_function": key.get("hash_function"),
     }
