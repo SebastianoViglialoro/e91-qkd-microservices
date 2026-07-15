@@ -1,5 +1,7 @@
 .venv/
 __pycache__/
+**/__pycache__/
+*.pyc
 *.py[cod]
 *$py.class
 .Python
@@ -11,11 +13,13 @@ htmlcov/
 
 .env
 .DS_Store
+results/.DS_Store
 
 *.log
 
 .docker/
-data/
+data/*
+!data/key-records.example.json
 dist/
 build/
 *.egg-info/
