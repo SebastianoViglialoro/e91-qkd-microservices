@@ -1,0 +1,24 @@
+[
+  {
+    "sampler_mode": "classical_singlet_sampler",
+    "runs": 10,
+    "failed_runs": 0,
+    "chsh_mean": -2.82596,
+    "chsh_stddev": 0.03625325119519934,
+    "abs_chsh_mean": 2.82596,
+    "abs_chsh_stddev": 0.03625325119519934,
+    "qber_mean": 0.0,
+    "qber_stddev": 0.0
+  },
+  {
+    "sampler_mode": "qiskit",
+    "runs": 10,
+    "failed_runs": 0,
+    "chsh_mean": 2.8345599999999997,
+    "chsh_stddev": 0.025272347646302158,
+    "abs_chsh_mean": 2.8345599999999997,
+    "abs_chsh_stddev": 0.025272347646302158,
+    "qber_mean": "",
+    "qber_stddev": ""
+  }
+]

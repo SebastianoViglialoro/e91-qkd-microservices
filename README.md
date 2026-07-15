@@ -101,6 +101,44 @@ Lo script esegue 10 ripetizioni con `shots=10000` per la pipeline classica e `sh
 
 Il sampler classico resta quello del flusso end-to-end; il sampler Qiskit viene usato come validazione isolata della verifica Bell/CHSH.
 
+Per il confronto finale sul modello definitivo:
+
+```bash
+python scripts/compare_final_samplers.py
+```
+
+Il confronto usa soprattutto `abs_chsh`: il segno di `chsh` puo' differire tra sampler classico e Qiskit per convenzioni su stato, rotazioni e mapping dei bit. Il risultato atteso e' la coerenza del valore assoluto della violazione Bell/CHSH, mentre Qiskit resta confinato al servizio `sifting-bell-test` e non diventa il motore della simulazione end-to-end.
+
+Per eseguire la campagna sperimentale finale della tesi:
+
+```bash
+python scripts/run_final_experiments.py --gateway-url http://localhost:18000 --shots 10000 --repeats 10
+```
+
+Lo script copre baseline, link loss sweep, noise sweep `bit_flip`/`depolarizing`, Eve sweep `randomize`/`intercept_resend`, scenari combinati noise+Eve e scenari combinati link loss+noise+Eve. Gli output vengono salvati in:
+
+- `results/final/final_experiment_runs.csv`
+- `results/final/final_experiment_summary.csv`
+- `results/final/final_experiment_summary.json`
+
+Per una prova rapida prima della campagna completa:
+
+```bash
+python scripts/run_final_experiments.py --gateway-url http://localhost:18000 --shots 1000 --repeats 2
+```
+
+Per generare i grafici finali dalla campagna completa:
+
+```bash
+python scripts/plot_final_experiments.py
+```
+
+I grafici PNG vengono salvati in:
+
+```text
+results/final/plots/
+```
+
 ## Flusso baseline
 
 `api-gateway` inoltra la richiesta all'`orchestrator`, che coordina:
