@@ -51,6 +51,10 @@ def build_key_record(result: dict) -> dict:
         "qber": evaluation.get("qber"),
         "raw_key_length": key.get("raw_key_length"),
         "sifted_key_length": key.get("sifted_key_length"),
+        "min_sifted_key_length": key.get(
+            "min_sifted_key_length",
+            request.get("min_sifted_key_length"),
+        ),
         "final_key_length": key.get("final_key_length"),
         "final_key": key.get("final_key") if key_status == "generated" else None,
         "key_reason": key.get("key_reason"),

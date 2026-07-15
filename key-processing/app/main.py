@@ -2,7 +2,7 @@ import hashlib
 import logging
 
 from fastapi import FastAPI
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 logger = logging.getLogger("key-processing")
@@ -10,7 +10,7 @@ logger = logging.getLogger("key-processing")
 app = FastAPI(title="E91 Key Processing")
 
 KEY_BASIS_PAIRS = ("K0/K0", "K1/K1")
-MIN_SIFTED_KEY_BITS = 256
+DEFAULT_MIN_SIFTED_KEY_LENGTH = 256
 HASH_FUNCTION = "SHA-256"
 PRIVACY_AMPLIFICATION = "simplified_hash_demo"
 
@@ -19,6 +19,7 @@ class GenerateKeyRequest(BaseModel):
     session_id: str
     evaluation: dict
     reconciled: dict
+    min_sifted_key_length: int = Field(default=DEFAULT_MIN_SIFTED_KEY_LENGTH, ge=1)
 
 
 @app.get("/health")
@@ -86,16 +87,17 @@ def generate_key(request: GenerateKeyRequest) -> dict:
 
     security_status = request.evaluation.get("security_status")
 
-    if sifted_key_length < MIN_SIFTED_KEY_BITS:
-        final_key = None
-        final_key_length = 0
-        key_status = "insufficient_key_material"
-        key_reason = f"Need at least {MIN_SIFTED_KEY_BITS} sifted key bits"
-    elif security_status == "secure":
-        final_key = hashlib.sha256(raw_key_bits.encode("utf-8")).hexdigest()
-        final_key_length = 256
-        key_status = "generated"
-        key_reason = "Secure session; final key derived from corrected key subset bits"
+    if security_status == "secure":
+        if sifted_key_length < request.min_sifted_key_length:
+            final_key = None
+            final_key_length = 0
+            key_status = "insufficient_key_material"
+            key_reason = "Insufficient sifted key material after link loss"
+        else:
+            final_key = hashlib.sha256(raw_key_bits.encode("utf-8")).hexdigest()
+            final_key_length = 256
+            key_status = "generated"
+            key_reason = "Secure session; final key derived from corrected key subset bits"
     elif security_status == "degraded":
         final_key = None
         final_key_length = 0
@@ -115,6 +117,7 @@ def generate_key(request: GenerateKeyRequest) -> dict:
         "raw_key_preview": raw_key_bits[:32],
         "key_basis_counts": key_basis_counts,
         "key_basis_pairs": list(KEY_BASIS_PAIRS),
+        "min_sifted_key_length": request.min_sifted_key_length,
         "hash_function": HASH_FUNCTION,
         "privacy_amplification": PRIVACY_AMPLIFICATION,
         "final_key_length": final_key_length,

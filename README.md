@@ -198,7 +198,22 @@ Per ogni round valido:
 3. il bit di Bob viene invertito, per correggere l'anti-correlazione ideale dello stato di singoletto;
 4. i bit corretti vengono usati per costruire la raw key binaria.
 
-Se `security_status = "secure"` e il materiale di chiave e' sufficiente, il servizio calcola:
+La richiesta di simulazione accetta anche una soglia dimostrativa:
+
+```json
+{
+  "min_sifted_key_length": 256
+}
+```
+
+Questa soglia separa lo stato fisico/protocollare dalla disponibilita' operativa della chiave:
+
+- `security_status` descrive CHSH/QBER;
+- `key_status` descrive se esiste abbastanza materiale utile per emettere una chiave finale.
+
+Un link con alta attenuazione puo' quindi rimanere `secure` dal punto di vista CHSH/QBER, ma produrre `key_status = "insufficient_key_material"` se il numero di bit sifted rimasti dopo la link loss e' sotto `min_sifted_key_length`.
+
+Se `security_status = "secure"` e `sifted_key_length >= min_sifted_key_length`, il servizio calcola:
 
 ```text
 final_key = SHA256(raw_key_bits).hexdigest()
@@ -209,11 +224,20 @@ Il risultato include:
 - `raw_key_length`
 - `sifted_key_length`
 - `raw_key_preview`, primi 32 bit per debug
+- `min_sifted_key_length`
 - `final_key`, stringa esadecimale SHA-256
 - `final_key_length = 256`
 - `hash_function = "SHA-256"`
 - `privacy_amplification = "simplified_hash_demo"`
 - `key_basis_pairs = ["K0/K0", "K1/K1"]`
+
+Se `security_status = "secure"` ma `sifted_key_length < min_sifted_key_length`, la chiave finale non viene generata:
+
+```text
+key_status = "insufficient_key_material"
+key_reason = "Insufficient sifted key material after link loss"
+final_key = null
+```
 
 Se la sessione e' `degraded` o `insecure`, la chiave finale non viene generata e `final_key = null`. L'uso di SHA-256 e' una dimostrazione semplificata di distillazione/privacy amplification: non e' ancora una implementazione completa di error correction e privacy amplification QKD.
 
@@ -228,7 +252,7 @@ Quando una simulazione termina, `result-store` salva:
 
 Con Docker Compose, i key record sintetici vengono persistiti in `data/key-records.json` tramite volume locale. Il risultato completo della sessione resta invece in memoria.
 
-La chiave finale viene salvata solo se `key_status = "generated"`. Per sessioni `discarded`, `discarded_degraded` o `insufficient_key_material`, `final_key = null`.
+La chiave finale viene salvata solo se `key_status = "generated"`. Per sessioni `discarded`, `discarded_degraded` o `insufficient_key_material`, `final_key = null`. I key record includono anche `min_sifted_key_length` e `key_reason`.
 
 Endpoint esposti dall'API Gateway:
 
