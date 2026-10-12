@@ -73,20 +73,25 @@ API Gateway
        -> Noise Model
        -> Eve Service
        -> Link Loss
-    -> Alice Service
-    -> Bob Service
-    -> Classical Channel
-    -> Sifting & Bell Test
+    -> Alice Service /select-bases -> basi locali Alice
+    -> Bob Service /select-bases -> basi locali Bob
+    -> Campionamento congiunto nell'Orchestrator + rumore/Eve
+    -> Alice Service /measure -> record definitivi Alice
+    -> Bob Service /measure -> record definitivi Bob
+    -> Classical Channel: pair_id -> R_KEY / R_BELL / scartati
+    -> Sifting & Bell Test: stessi outcome -> QBER / CHSH
     -> Key Processing
     -> Result Store / Mini KMS
   -> Dashboard
 ```
 
+Il [diagramma di sequenza aggiornato](architecture_diagram.md#diagramma-di-sequenza-della-misura-e-del-sifting) dettaglia chiamate e record delle due fasi dei receiver.
+
 L'utente interagisce con il sistema tramite l'API Gateway o tramite la dashboard. L'API Gateway riceve la richiesta di simulazione e la inoltra all'Orchestrator. L'Orchestrator crea una sessione, genera un `session_id`, invoca i servizi nel corretto ordine e raccoglie i risultati parziali.
 
-Il servizio `entangled-source` genera una lista di coppie simboliche identificate da `pair_id`. Il servizio `quantum-channel` riceve queste coppie, applica la perdita di link, chiama se necessario `noise-model` ed `eve-service`, e restituisce i qubit simbolici consegnati ad Alice e Bob. Alice e Bob scelgono basi di misura e producono misure simboliche. Il `classical-channel` confronta le basi pubbliche e divide i round in `key_subset`, `bell_subset` e `discarded_subset`.
+Il servizio `entangled-source` genera una lista di coppie simboliche identificate da `pair_id`. Il servizio `quantum-channel` riceve queste coppie, applica la perdita di link, chiama se necessario `noise-model` ed `eve-service`, e restituisce i qubit simbolici consegnati ad Alice e Bob. Alice e Bob scelgono localmente le basi tramite `/select-bases`. Dopo entrambe le risposte, l'Orchestrator campiona una sola coppia di outcome per round consegnato, applica rumore/Eve e invia i record definitivi ai receiver tramite `/measure` per la registrazione. Il `classical-channel` confronta le basi pubbliche e divide i round in `key_subset`, `bell_subset` e `discarded_subset`.
 
-Il servizio `sifting-bell-test` applica il sampler delle correlazioni E91, calcola CHSH e QBER, e determina lo stato di sicurezza. Il servizio `key-processing` genera la chiave finale solo se la sessione è sicura e se il materiale sifted è sufficiente. Infine, `result-store` salva il risultato completo e un record sintetico nel Mini KMS.
+Il servizio `sifting-bell-test` usa gli outcome registrati senza ricampionamento, calcola CHSH e QBER, e determina lo stato di sicurezza. Il servizio `key-processing` genera la chiave finale solo se la sessione è sicura e se il materiale sifted è sufficiente. Infine, `result-store` salva il risultato completo e un record sintetico nel Mini KMS.
 
 ### Proposta di figura architetturale
 
@@ -104,6 +109,12 @@ Componenti da includere nella figura:
 - `result-store` e Mini KMS, come persistenza dei risultati e dei key record;
 - `monitoring` e dashboard, come elementi di osservabilità e visualizzazione.
 
+Una versione Mermaid pronta per essere esportata o ricreata in un editor grafico è disponibile in:
+
+```text
+docs/architecture_diagram.md
+```
+
 ## 5. Descrizione dei microservizi
 
 La tabella seguente riassume responsabilità, input, output e ruolo di ciascun servizio.
@@ -111,15 +122,15 @@ La tabella seguente riassume responsabilità, input, output e ruolo di ciascun s
 | Servizio | Responsabilità | Input principali | Output principali | Ruolo nella simulazione E91 |
 | --- | --- | --- | --- | --- |
 | `api-gateway` | Espone l'interfaccia pubblica del sistema. Riceve richieste utente e inoltra all'Orchestrator. Espone anche endpoint di consultazione risultati e chiavi. | Parametri simulazione: `shots`, noise, Eve, link loss, soglia chiave. | Risultato simulazione, key records, summary Mini KMS. | Punto unico di accesso per client, dashboard e test. |
-| `orchestrator` | Coordina l'intera sessione. Invoca i servizi nel corretto ordine e costruisce il risultato finale. | Richiesta simulazione inoltrata dall'API Gateway. | Oggetto risultato contenente sorgente, trasmissione, link metrics, Bell test e chiave. | Controller applicativo del flusso E91. |
+| `orchestrator` | Coordina l'intera sessione. Invoca i servizi, campiona congiuntamente gli outcome dopo la scelta delle basi e costruisce il risultato finale. | Richiesta simulazione inoltrata dall'API Gateway. | Oggetto risultato contenente sorgente, trasmissione, link metrics, Bell test e chiave. | Controller applicativo del flusso E91. |
 | `entangled-source` | Genera coppie entangled simboliche. | `session_id`, `shots`. | Lista di `pair_id` con stato simbolico `EPR_PAIR`. | Rappresenta la sorgente di coppie entangled. |
 | `quantum-channel` | Simula la trasmissione quantistica. Applica perdita di link e coordina noise/Eve. | Lista di coppie, parametri link loss, noise ed Eve. | Coppie consegnate, coppie perse, flag `noise_applied`, flag `eve_applied`, `link_metrics`. | Modella il canale quantistico tra sorgente, Alice e Bob. |
 | `noise-model` | Seleziona probabilisticamente le coppie disturbate. | Coppie disponibili, `noise_level`, `noise_type`. | `disturbed_pair_ids`, `noise_applied_count`, `noise_type`. | Rappresenta rumore fisico non intenzionale. |
 | `eve-service` | Seleziona probabilisticamente le coppie attaccate. | Coppie disponibili, `eve_attack_probability`, `attack_type`. | `attacked_pair_ids`, `eve_applied_count`, `attack_type`. | Rappresenta un attaccante intenzionale sul canale quantistico. |
-| `alice-service` | Sceglie casualmente una base di Alice e produce una misura simbolica. | Qubit simbolici assegnati ad Alice. | Misure con `basis`, `basis_angle`, `outcome`, flag noise/Eve/link. | Modella il receiver Alice. |
-| `bob-service` | Sceglie casualmente una base di Bob e produce una misura simbolica. | Qubit simbolici assegnati a Bob. | Misure con `basis`, `basis_angle`, `outcome`, flag noise/Eve/link. | Modella il receiver Bob. |
+| `alice-service` | Sceglie localmente la base di Alice, poi valida e registra l'outcome congiunto ricevuto. | Qubit simbolici assegnati ad Alice. | Misure con `basis`, `basis_angle`, `outcome`, flag noise/Eve/link. | Modella il receiver Alice. |
+| `bob-service` | Sceglie localmente la base di Bob, poi valida e registra l'outcome congiunto ricevuto. | Qubit per `/select-bases`; record completi di base e outcome per `/measure`. | Misure con `basis`, `basis_angle`, `outcome`, flag noise/Eve/link. | Modella il receiver Bob. |
 | `classical-channel` | Riconcilia le misure in base al `pair_id` e classifica le combinazioni di basi. | Misure di Alice e Bob, coppie perse. | `key_subset`, `bell_subset`, `discarded_subset`, basi pubblicate. | Rappresenta il canale classico di sifting. |
-| `sifting-bell-test` | Calcola correlazioni, CHSH, QBER e stato di sicurezza. Integra il sampler classico e l'endpoint Qiskit opzionale. | Output del classical channel. | `chsh`, `abs_chsh`, `qber`, `security_status`, `correlations`, `key_records`. | Cuore del post-processing E91. |
+| `sifting-bell-test` | Calcola correlazioni, CHSH, QBER e stato di sicurezza. Usa i record definitivi senza ricampionamento; espone l'endpoint Qiskit opzionale. | Output del classical channel. | `chsh`, `abs_chsh`, `qber`, `security_status`, `correlations`, `key_records`. | Cuore del post-processing E91. |
 | `key-processing` | Deriva la raw key, controlla la soglia minima e genera SHA-256 se consentito. | Risultato Bell/QBER, `key_subset`, `min_sifted_key_length`. | `raw_key_length`, `sifted_key_length`, `final_key`, `key_status`, `key_reason`. | Produce la chiave finale dimostrativa. |
 | `result-store` | Salva risultati completi e key records sintetici. | Risultato finale della sessione. | Endpoint `/results`, `/keys`, `/keys/latest`, `/keys/summary`. | Persistenza in-memory e Mini KMS dimostrativo. |
 | `monitoring` | Espone endpoint placeholder per eventi e metriche. | Eventi dai servizi. | Metriche placeholder. | Base per osservabilità e dashboard future. |
@@ -179,7 +190,7 @@ Questa scelta consente di modellare una struttura a tre basi per parte, in cui d
 
 ## 7. CHSH, QBER e classificazione
 
-Il servizio `sifting-bell-test` riceve dal `classical-channel` i sottoinsiemi riconciliati. Per i round del `bell_subset`, il sistema applica un sampler classico delle correlazioni ideali dello stato di singoletto. Il modello usa la relazione:
+Il servizio `sifting-bell-test` riceve dal `classical-channel` i sottoinsiemi riconciliati. Gli outcome sono già stati generati nell'Orchestrator e registrati dai receiver. Il sampler classico applicato a monte a ogni round consegnato riproduce le correlazioni ideali dello stato di singoletto. Il modello usa la relazione:
 
 ```text
 E(a,b) = -cos(a - b)
@@ -465,7 +476,7 @@ POST /qiskit-chsh-test
 
 permette di richiedere una stima CHSH Qiskit indicando `shots_per_basis`.
 
-Il confronto finale tra sampler classico e Qiskit ha lo scopo di validare la coerenza della componente Bell/CHSH. Il sampler classico resta il default del flusso principale `/evaluate`, mentre Qiskit viene usato solo come controllo isolato. Questa scelta è coerente con il vincolo progettuale secondo cui Qiskit non deve diventare il centro dell'intera simulazione.
+Il confronto finale tra sampler classico e Qiskit ha lo scopo di validare la coerenza della componente Bell/CHSH. Il sampler classico opera nell'Orchestrator, mentre `/evaluate` usa esclusivamente gli outcome registrati, mentre Qiskit viene usato solo come controllo isolato. Questa scelta è coerente con il vincolo progettuale secondo cui Qiskit non deve diventare il centro dell'intera simulazione.
 
 Il confronto usa in particolare `abs_chsh`, poiché il segno di `chsh` può cambiare a seconda delle convenzioni di stato, rotazione e mapping dei bit. La coerenza rilevante è quindi la vicinanza del valore assoluto alla violazione attesa.
 

@@ -6,6 +6,7 @@ from uuid import uuid4
 import httpx
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
+from shared.outcome_sampler import sample_receiver_records
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 logger = logging.getLogger("orchestrator")
@@ -85,13 +86,24 @@ async def run_session(request: RunSessionRequest) -> dict:
         )
         alice = await post_json(
             client,
-            f"{ALICE_URL}/measure",
+            f"{ALICE_URL}/select-bases",
             {"session_id": session_id, "qubits": transmitted["alice_qubits"]},
         )
         bob = await post_json(
             client,
-            f"{BOB_URL}/measure",
+            f"{BOB_URL}/select-bases",
             {"session_id": session_id, "qubits": transmitted["bob_qubits"]},
+        )
+        # Both local bases are now known. Sample each delivered pair exactly once,
+        # including the existing noise/Eve transformations, before registration.
+        alice_records, bob_records = sample_receiver_records(alice["measurements"], bob["measurements"])
+        alice = await post_json(
+            client, f"{ALICE_URL}/measure",
+            {"session_id": session_id, "qubits": alice_records},
+        )
+        bob = await post_json(
+            client, f"{BOB_URL}/measure",
+            {"session_id": session_id, "qubits": bob_records},
         )
         reconciled = await post_json(
             client,

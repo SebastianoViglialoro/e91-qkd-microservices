@@ -1,6 +1,4 @@
 import logging
-import math
-import random
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
@@ -27,23 +25,10 @@ TSIRELSON_BOUND = 2.8284271247461903
 SECURE_CHSH_THRESHOLD = 2.4
 SECURE_QBER_THRESHOLD = 0.08
 INSECURE_QBER_THRESHOLD = 0.15
-OUTCOMES = (-1, 1)
 
 
 def outcome_to_bit(outcome: int) -> int:
     return 1 if outcome == 1 else 0
-
-
-def sample_singlet_outcomes(alice_angle_degrees: float, bob_angle_degrees: float) -> tuple[int, int]:
-    alice_angle = math.radians(alice_angle_degrees)
-    bob_angle = math.radians(bob_angle_degrees)
-    expectation = -math.cos(alice_angle - bob_angle)
-    same_probability = max(0.0, min(1.0, (1.0 + expectation) / 2.0))
-
-    alice_outcome = random.choice(OUTCOMES)
-    same_outcome = random.random() < same_probability
-    bob_outcome = alice_outcome if same_outcome else -alice_outcome
-    return alice_outcome, bob_outcome
 
 
 def classify_security(abs_chsh: float, qber: float, chsh_available: bool) -> tuple[str, str]:
@@ -115,46 +100,6 @@ def compute_chsh_from_check_subset(correlated_check_subset: list[dict]) -> dict:
     }
 
 
-def correlate_with_singlet_sampler(items: list[dict]) -> list[dict]:
-    correlated = []
-    for item in items:
-        alice_outcome, bob_outcome = sample_singlet_outcomes(
-            item["alice_basis_angle"],
-            item["bob_basis_angle"],
-        )
-        noise_type = item.get("noise_type", "bit_flip")
-        attack_type = item.get("attack_type", "randomize")
-
-        # Symbolic controlled-noise strategies:
-        # - bit_flip: Bob's sampled outcome is inverted.
-        # - depolarizing: Bob's sampled outcome is randomized, approximating
-        #   loss of directional information without modelling a full channel.
-        if item.get("noise_applied", False):
-            if noise_type == "depolarizing":
-                bob_outcome = random.choice(OUTCOMES)
-            else:
-                bob_outcome = -bob_outcome
-
-        # Symbolic Eve strategies:
-        # - randomize: Bob's outcome is randomized on attacked rounds.
-        # - intercept_resend: simplified intercept/resend model; Eve breaks
-        #   the entangled correlation, implemented here as an independent Bob
-        #   outcome while preserving a separate attack_type in the results.
-        if item.get("eve_applied", False):
-            bob_outcome = random.choice(OUTCOMES)
-        correlated.append(
-            {
-                **item,
-                "alice_outcome": alice_outcome,
-                "bob_outcome": bob_outcome,
-                "correlation_model": "classical_singlet_sampler",
-                "noise_type": noise_type,
-                "attack_type": attack_type,
-            }
-        )
-    return correlated
-
-
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok", "service": "sifting-bell-test"}
@@ -195,8 +140,9 @@ def evaluate(request: EvaluateRequest) -> dict:
         "check_subset",
         request.reconciled.get("bell_subset", request.reconciled.get("bell_test_subset", [])),
     )
-    correlated_check_subset = correlate_with_singlet_sampler(check_subset)
-    correlated_key_subset = correlate_with_singlet_sampler(key_subset)
+    # Final receiver outcomes already include noise/Eve; never sample or perturb here.
+    correlated_check_subset = check_subset
+    correlated_key_subset = key_subset
     matched_measurements = request.reconciled.get("matched_measurements", [])
     noise_applied_count = sum(1 for item in matched_measurements if item.get("noise_applied", False))
     noise_levels = [

@@ -156,6 +156,9 @@ Grafici associati:
 results/final/plots/link_loss_total_db_vs_sifted_key_length.png
 results/final/plots/link_loss_total_db_vs_lost_pair_count.png
 results/final/plots/link_loss_total_db_vs_generated_key_rate.png
+results/final/plots/link_loss_total_distance_km_vs_sifted_key_length.png
+results/final/plots/link_loss_total_distance_km_vs_lost_pair_count.png
+results/final/plots/link_loss_total_distance_km_vs_generated_key_rate.png
 results/final/plots/link_loss_status_distribution.png
 ```
 
@@ -164,6 +167,7 @@ Didascalie suggerite:
 - **Figura 5.x - Effetto della perdita di link sul materiale sifted.** Mostra la diminuzione della lunghezza media della chiave sifted al crescere della perdita totale in dB.
 - **Figura 5.x - Coppie perse in funzione della perdita totale.** Evidenzia l'aumento dei `lost_pair_count` al crescere dell'attenuazione.
 - **Figura 5.x - Generated key rate negli scenari di link loss.** Mostra il ruolo della soglia minima di materiale chiave.
+- **Figura 5.x - Effetto della distanza totale sulla disponibilità della chiave.** Rappresenta gli stessi scenari usando l'asse in chilometri totali, più immediato per mostrare l'impatto della distanza.
 - **Figura 5.x - Distribuzione dello stato del link.** Riassume la classificazione nominal/degraded/critical degli scenari di attenuazione.
 
 ## 5. Noise sweep

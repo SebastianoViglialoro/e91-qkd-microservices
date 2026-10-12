@@ -29,6 +29,31 @@ Ogni servizio espone `GET /health`.
 docker compose up --build
 ```
 
+## Riproducibilita' rapida
+
+La checklist completa per riprodurre il progetto e' in:
+
+```text
+docs/reproducibility.md
+```
+
+Il diagramma architetturale suggerito per la tesi e' in:
+
+```text
+docs/architecture_diagram.md
+```
+
+Con i microservizi avviati, esegui lo smoke test end-to-end:
+
+```bash
+python scripts/smoke_test.py \
+  --gateway-url http://localhost:18000 \
+  --sifting-bell-test-url http://localhost:8009 \
+  --shots 10000
+```
+
+Lo smoke test verifica API Gateway, baseline, scenario degraded, scenario insecure, Mini KMS e validazione Qiskit opzionale.
+
 ## Test rapido
 
 Avvia una simulazione dalla porta pubblica dell'API Gateway:
@@ -139,18 +164,31 @@ I grafici PNG vengono salvati in:
 results/final/plots/
 ```
 
+Oltre ai grafici in funzione della perdita totale in dB, lo script genera anche grafici piu' leggibili in funzione della distanza totale:
+
+- `link_loss_total_distance_km_vs_sifted_key_length.png`
+- `link_loss_total_distance_km_vs_lost_pair_count.png`
+- `link_loss_total_distance_km_vs_generated_key_rate.png`
+
 ## Flusso baseline
 
 `api-gateway` inoltra la richiesta all'`orchestrator`, che coordina:
 
 1. `entangled-source /generate`
 2. `quantum-channel /transmit`
-3. `alice-service /measure`
-4. `bob-service /measure`
-5. `classical-channel /reconcile`
-6. `sifting-bell-test /evaluate`
-7. `key-processing /generate-key`
-8. `result-store /results`
+3. `alice-service /select-bases`: scelta locale delle basi Alice
+4. `bob-service /select-bases`: scelta locale delle basi Bob
+5. Orchestrator: campionamento congiunto unico per round consegnato, poi rumore/Eve
+6. `alice-service /measure`: registrazione degli outcome definitivi Alice
+7. `bob-service /measure`: registrazione degli outcome definitivi Bob
+8. `classical-channel /reconcile`: associazione per `pair_id` e separazione dei subset
+9. `sifting-bell-test /evaluate`: QBER e CHSH dagli stessi outcome, senza ricampionamento
+10. `key-processing /generate-key`
+11. `result-store /results`
+
+Il [diagramma di sequenza](docs/architecture_diagram.md#diagramma-di-sequenza-della-misura-e-del-sifting)
+mostra le due fasi dei receiver. I [contratti interni](docs/outcome_pipeline.md)
+descrivono i record completi richiesti da `/measure`.
 
 ## Post-processing basi, check e QBER
 
@@ -193,7 +231,7 @@ Il risultato del post-processing include anche:
 - `alice_bases = ["C", "K0", "K1"]`
 - `bob_bases = ["K0", "K1", "C"]`
 
-Nel servizio `sifting-bell-test`, gli outcome usati per check subset e key subset sono ricampionati con un modello classico semplificato dello stato di singoletto:
+Nell'Orchestrator, dopo la scelta locale di entrambe le basi, gli outcome vengono campionati congiuntamente una sola volta tramite `shared/outcome_sampler.py` e registrati dai receiver. Il servizio `sifting-bell-test` usa questi stessi outcome. Il modello classico semplificato dello stato di singoletto mantiene la relazione:
 
 ```text
 E(a,b) = -cos(a - b)
@@ -390,7 +428,7 @@ Il modulo usa Qiskit solo per validare/campionare il Bell/CHSH test quando esist
 - converte i counts in correlazioni `E(A,B)`;
 - calcola CHSH dai termini configurati nel modello condiviso.
 
-Il sampler classico resta il default dell'endpoint `/evaluate`. La verifica Qiskit e' esposta solo tramite endpoint di test del servizio `sifting-bell-test`:
+Il sampler classico opera nell'Orchestrator; `/evaluate` calcola le metriche dagli outcome registrati senza ricampionarli. La verifica Qiskit e' esposta solo tramite endpoint di test del servizio `sifting-bell-test`:
 
 ```bash
 curl -X POST http://localhost:8009/qiskit-chsh-test \
@@ -481,7 +519,7 @@ Il Noise Model e' ancora simbolico e controllato. La richiesta di simulazione ac
 
 Il servizio `noise-model` non conosce basi, CHSH o QBER. Il suo ruolo e' solo marcare alcune coppie come disturbate: per ogni `pair_id`, con probabilita' `noise_level`, restituisce quel `pair_id` in `disturbed_pair_ids`.
 
-Il `quantum-channel` allega quindi `noise_applied=true` ai pair disturbati. Alice e Bob preservano questo flag nelle misure, il `classical-channel` lo mantiene nei subset riconciliati, e `sifting-bell-test` usa il flag per degradare le correlazioni.
+Il `quantum-channel` allega quindi `noise_applied=true` ai pair disturbati. L'Orchestrator usa questo flag per applicare la perturbazione durante la generazione congiunta degli outcome. Alice e Bob registrano gli outcome definitivi e preservano il flag; il `classical-channel` lo mantiene nei subset riconciliati e `sifting-bell-test` non applica nuovamente la perturbazione.
 
 Questi modelli sono ancora semplificati: servono a confrontare perturbazioni diverse su CHSH, QBER e disponibilita' della chiave, non rappresentano ancora un modello fisico completo del canale.
 
@@ -514,7 +552,7 @@ La richiesta di simulazione puo' abilitare Eve:
 
 Il servizio `eve-service` non conosce basi, CHSH o QBER. Il suo ruolo e' marcare alcune coppie come attaccate: per ogni `pair_id`, con probabilita' `eve_attack_probability`, restituisce quel `pair_id` in `attacked_pair_ids`.
 
-Il `quantum-channel` allega `eve_applied=true` ai pair attaccati. Alice e Bob preservano questo flag nelle misure, il `classical-channel` lo mantiene nei subset riconciliati, e `sifting-bell-test` usa il flag per degradare le correlazioni.
+Il `quantum-channel` allega `eve_applied=true` ai pair attaccati. L'Orchestrator usa questo flag per applicare la perturbazione durante la generazione congiunta degli outcome. Alice e Bob registrano gli outcome definitivi e preservano il flag; il `classical-channel` lo mantiene nei subset riconciliati e `sifting-bell-test` non applica nuovamente la perturbazione.
 
 Anche questi attacchi sono simbolici e controllati: servono a confrontare diverse perturbazioni intenzionali su CHSH, QBER e disponibilita' della chiave, non sono ancora una simulazione fisica completa di Eve.
 

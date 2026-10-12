@@ -94,7 +94,9 @@ def generate_key(request: GenerateKeyRequest) -> dict:
             key_status = "insufficient_key_material"
             key_reason = "Insufficient sifted key material after link loss"
         else:
-            final_key = hashlib.sha256(raw_key_bits.encode("utf-8")).hexdigest()
+            # Centralized demo filter using globally known disagreements;
+            # this is not reconciliation or cryptographic privacy amplification.
+            final_key = hashlib.sha256(sifted_key_bits.encode("utf-8")).hexdigest()
             final_key_length = 256
             key_status = "generated"
             key_reason = "Secure session; final key derived from corrected key subset bits"

@@ -1,0 +1,312 @@
+{
+  "saved_campaign": {
+    "runs": 360,
+    "scenarios": 36,
+    "shots": {
+      "10000": 360
+    },
+    "repeats": {
+      "10": 36
+    },
+    "security": {
+      "secure": 228,
+      "degraded": 91,
+      "insecure": 41
+    },
+    "keys": {
+      "generated": 218,
+      "insufficient_key_material": 10,
+      "discarded_degraded": 91,
+      "discarded": 41
+    },
+    "errors": 0,
+    "summary_json_differences": [],
+    "summary_csv_differences": [],
+    "invariants": {
+      "raw_equals_key_subset": true,
+      "key_bell_discard_sum_shots": true
+    },
+    "nonzero_qber_generated": 138
+  },
+  "saved_comparison": {
+    "runs": 20,
+    "summary_json_differences": [],
+    "summary_csv_differences": [],
+    "mean_classical_bell_samples": 4443.0
+  },
+  "outcomes_resampled": {
+    "input_all_equal": true,
+    "output_all_anticorrelated": true
+  },
+  "eve_models_identical_under_same_seed": true,
+  "hash_fixture": {
+    "raw_length": 300,
+    "sifted_length": 290,
+    "status": "generated",
+    "hashes_raw": true,
+    "hashes_clean": false,
+    "matches_bob_raw_hash": false
+  },
+  "missing_chsh": {
+    "chsh_available": false,
+    "abs_chsh": 0.0,
+    "qber": 0.0,
+    "security_status": "degraded",
+    "classification_reason": "CHSH unavailable for current check-basis model"
+  },
+  "basis_model_request_ignored": true,
+  "routes": {
+    "POST /simulate": 404,
+    "GET /results": 404,
+    "GET /results/example": 404
+  },
+  "isolated_pipeline": [
+    {
+      "scenario": "baseline",
+      "http": 200,
+      "abs_chsh": 2.8407,
+      "qber": 0.0,
+      "key_subset": 2233,
+      "sifted": 2233,
+      "security_status": "secure",
+      "key_status": "generated",
+      "lost": 0,
+      "discarded": 3312
+    },
+    {
+      "scenario": "noise_bit_flip_0.10",
+      "http": 200,
+      "abs_chsh": 2.2066,
+      "qber": 0.1093,
+      "key_subset": 2195,
+      "sifted": 1955,
+      "security_status": "degraded",
+      "key_status": "discarded_degraded",
+      "lost": 0,
+      "discarded": 3399
+    },
+    {
+      "scenario": "noise_bit_flip_0.25",
+      "http": 200,
+      "abs_chsh": 1.4064,
+      "qber": 0.2404,
+      "key_subset": 2209,
+      "sifted": 1678,
+      "security_status": "insecure",
+      "key_status": "discarded",
+      "lost": 0,
+      "discarded": 3378
+    },
+    {
+      "scenario": "noise_depolarizing_0.10",
+      "http": 200,
+      "abs_chsh": 2.5426,
+      "qber": 0.0468,
+      "key_subset": 2223,
+      "sifted": 2119,
+      "security_status": "secure",
+      "key_status": "generated",
+      "lost": 0,
+      "discarded": 3311
+    },
+    {
+      "scenario": "eve_intercept_resend_0.10",
+      "http": 200,
+      "abs_chsh": 2.5826,
+      "qber": 0.0388,
+      "key_subset": 2245,
+      "sifted": 2158,
+      "security_status": "secure",
+      "key_status": "generated",
+      "lost": 0,
+      "discarded": 3327
+    },
+    {
+      "scenario": "link_critical_high_threshold",
+      "http": 200,
+      "abs_chsh": 2.846,
+      "qber": 0.0,
+      "key_subset": 368,
+      "sifted": 368,
+      "security_status": "secure",
+      "key_status": "insufficient_key_material",
+      "lost": 8403,
+      "discarded": 8942
+    },
+    {
+      "scenario": "link_noise_eve_medium",
+      "http": 200,
+      "abs_chsh": 2.308,
+      "qber": 0.0866,
+      "key_subset": 531,
+      "sifted": 485,
+      "security_status": "degraded",
+      "key_status": "discarded_degraded",
+      "lost": 7555,
+      "discarded": 8335
+    }
+  ],
+  "latest": {
+    "type": "list",
+    "length": 7,
+    "includes_non_generated": true
+  },
+  "simulated_store_reload": {
+    "result_before": 200,
+    "result_after": 404,
+    "key_record_after": 200,
+    "persisted_fields": [
+      "abs_chsh",
+      "attack_type",
+      "basis_model",
+      "chsh",
+      "created_at",
+      "eve_attack_probability",
+      "eve_enabled",
+      "final_key",
+      "final_key_length",
+      "hash_function",
+      "key_reason",
+      "key_status",
+      "link_status",
+      "min_sifted_key_length",
+      "noise_enabled",
+      "noise_level",
+      "noise_type",
+      "privacy_amplification",
+      "qber",
+      "raw_key_length",
+      "security_status",
+      "session_id",
+      "sifted_key_length",
+      "source_alice_distance_km",
+      "source_bob_distance_km",
+      "total_quantum_loss_db",
+      "transmittance"
+    ]
+  },
+  "qiskit_prepared_state": {
+    "0": [
+      0.707107,
+      0.0
+    ],
+    "3": [
+      0.707107,
+      0.0
+    ]
+  },
+  "exact_correlations": [
+    {
+      "alice": "C",
+      "bob": "K0",
+      "qiskit": 0.7071067811865474,
+      "singlet": -0.7071067811865476
+    },
+    {
+      "alice": "C",
+      "bob": "K1",
+      "qiskit": 2.220446049250313e-16,
+      "singlet": -6.123233995736766e-17
+    },
+    {
+      "alice": "C",
+      "bob": "C",
+      "qiskit": 0.7071067811865474,
+      "singlet": -0.7071067811865476
+    },
+    {
+      "alice": "K0",
+      "bob": "K0",
+      "qiskit": 0.9999999999999996,
+      "singlet": -1.0
+    },
+    {
+      "alice": "K0",
+      "bob": "K1",
+      "qiskit": 0.7071067811865474,
+      "singlet": -0.7071067811865476
+    },
+    {
+      "alice": "K0",
+      "bob": "C",
+      "qiskit": 0.0,
+      "singlet": -6.123233995736766e-17
+    },
+    {
+      "alice": "K1",
+      "bob": "K0",
+      "qiskit": 0.7071067811865475,
+      "singlet": -0.7071067811865476
+    },
+    {
+      "alice": "K1",
+      "bob": "K1",
+      "qiskit": 0.9999999999999998,
+      "singlet": -1.0
+    },
+    {
+      "alice": "K1",
+      "bob": "C",
+      "qiskit": -0.7071067811865472,
+      "singlet": 0.7071067811865475
+    }
+  ],
+  "qiskit_aer_run": {
+    "chsh": 2.7944,
+    "abs_chsh": 2.7944,
+    "correlations": {
+      "E(C,K0)": {
+        "expectation": 0.6904,
+        "counts": {
+          "01": 189,
+          "11": 1043,
+          "10": 198,
+          "00": 1070
+        },
+        "shots": 2500,
+        "coefficient": 1
+      },
+      "E(C,C)": {
+        "expectation": 0.6984,
+        "counts": {
+          "01": 189,
+          "11": 1056,
+          "10": 188,
+          "00": 1067
+        },
+        "shots": 2500,
+        "coefficient": 1
+      },
+      "E(K1,K0)": {
+        "expectation": 0.7136,
+        "counts": {
+          "01": 182,
+          "10": 176,
+          "00": 1078,
+          "11": 1064
+        },
+        "shots": 2500,
+        "coefficient": 1
+      },
+      "E(K1,C)": {
+        "expectation": -0.692,
+        "counts": {
+          "01": 1054,
+          "11": 190,
+          "00": 195,
+          "10": 1061
+        },
+        "shots": 2500,
+        "coefficient": -1
+      }
+    },
+    "sampler_mode": "qiskit"
+  },
+  "versions": {
+    "qiskit": "2.5.0",
+    "qiskit-aer": "0.17.2",
+    "fastapi": "0.115.6",
+    "pydantic": "2.10.4",
+    "httpx": "0.28.1"
+  }
+}

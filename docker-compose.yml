@@ -14,7 +14,9 @@ services:
       - e91-network
 
   orchestrator:
-    build: ./orchestrator
+    build:
+      context: .
+      dockerfile: orchestrator/Dockerfile
     container_name: e91-orchestrator
     ports:
       - "8001:8001"

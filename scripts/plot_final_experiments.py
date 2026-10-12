@@ -108,6 +108,56 @@ def load_summary(path: Path) -> list[dict]:
     return rows
 
 
+def load_run_distance_metadata(path: Path) -> dict[str, dict[str, float]]:
+    if not path.exists():
+        return {}
+
+    fields = [
+        "source_alice_distance_km",
+        "source_bob_distance_km",
+    ]
+    accumulators: dict[str, dict[str, list[float]]] = {}
+
+    with path.open(newline="", encoding="utf-8") as csv_file:
+        for row in csv.DictReader(csv_file):
+            scenario_name = row.get("scenario_name")
+            if not scenario_name:
+                continue
+            scenario_values = accumulators.setdefault(
+                scenario_name,
+                {field: [] for field in fields},
+            )
+            for field in fields:
+                value = row.get(field)
+                if value in ("", None):
+                    continue
+                try:
+                    scenario_values[field].append(float(value))
+                except (TypeError, ValueError):
+                    continue
+
+    metadata: dict[str, dict[str, float]] = {}
+    for scenario_name, values in accumulators.items():
+        alice_values = values["source_alice_distance_km"]
+        bob_values = values["source_bob_distance_km"]
+        alice_distance = sum(alice_values) / len(alice_values) if alice_values else 0.0
+        bob_distance = sum(bob_values) / len(bob_values) if bob_values else 0.0
+        metadata[scenario_name] = {
+            "source_alice_distance_km_mean": alice_distance,
+            "source_bob_distance_km_mean": bob_distance,
+            "total_distance_km_mean": alice_distance + bob_distance,
+        }
+    return metadata
+
+
+def enrich_with_distance_metadata(rows: list[dict], metadata: dict[str, dict[str, float]]) -> None:
+    for row in rows:
+        row_metadata = metadata.get(row["scenario_name"], {})
+        row["source_alice_distance_km_mean"] = row_metadata.get("source_alice_distance_km_mean", 0.0)
+        row["source_bob_distance_km_mean"] = row_metadata.get("source_bob_distance_km_mean", 0.0)
+        row["total_distance_km_mean"] = row_metadata.get("total_distance_km_mean", 0.0)
+
+
 def rows_by_name(rows: list[dict]) -> dict[str, dict]:
     return {row["scenario_name"]: row for row in rows}
 
@@ -250,6 +300,55 @@ def plot_link_metric(plt, rows: list[dict], metric: str, title: str, ylabel: str
     return save_figure(plt, output_path)
 
 
+def plot_link_distance_metric(plt, rows: list[dict], metric: str, title: str, ylabel: str, output_path: Path) -> Path:
+    fig, ax = plt.subplots(figsize=(8, 5))
+    x_values = [row["total_distance_km_mean"] for row in rows]
+    y_values = [row[metric] for row in rows]
+    labels = []
+    for row in rows:
+        name = row["scenario_name"]
+        if name == "link_critical_high_threshold":
+            scenario_label = "critical\nhigh threshold"
+        elif name.startswith("link_"):
+            scenario_label = name.removeprefix("link_").replace("_", " ")
+        else:
+            scenario_label = name.replace("_", " ")
+        labels.append(f"{row['total_quantum_loss_db_mean']:.1f} dB\n{scenario_label}")
+    ax.plot(x_values, y_values, marker="o", color="#00e5ff")
+    ax.margins(x=0.08, y=0.18)
+    if metric == "generated_key_rate":
+        ax.set_ylim(-0.08, 1.16)
+    duplicate_offsets: dict[float, int] = {}
+    x_max = max(x_values, default=0.0)
+    for x_value, y_value, label in zip(x_values, y_values, labels):
+        duplicate_key = round(x_value, 6)
+        duplicate_index = duplicate_offsets.get(duplicate_key, 0)
+        duplicate_offsets[duplicate_key] = duplicate_index + 1
+        horizontal_alignment = "left"
+        vertical_alignment = "baseline"
+        offsets = [(5, 10), (5, -34), (5, 28), (5, -52)]
+        if x_value == x_max:
+            horizontal_alignment = "right"
+            offsets = [(-8, 10), (-8, -34), (-8, 28), (-8, -52)]
+            if metric == "generated_key_rate" and y_value <= 0.05:
+                offsets = [(-8, 16), (-8, 22), (-8, 34), (-8, 46)]
+                vertical_alignment = "bottom"
+        elif metric == "generated_key_rate" and y_value >= 0.95 and x_value >= x_max * 0.7:
+            horizontal_alignment = "right"
+            offsets = [(-8, -42), (-8, -58), (-8, -74), (-8, -90)]
+        ax.annotate(
+            label,
+            (x_value, y_value),
+            textcoords="offset points",
+            xytext=offsets[duplicate_index % len(offsets)],
+            fontsize=8,
+            ha=horizontal_alignment,
+            va=vertical_alignment,
+        )
+    style_axes(ax, title, "total_distance_km_mean", ylabel)
+    return save_figure(plt, output_path)
+
+
 def plot_category_metric(plt, rows: list[dict], metric: str, title: str, ylabel: str, output_path: Path) -> Path:
     fig, ax = plt.subplots(figsize=(8, 5))
     labels = [combined_label(row) for row in rows]
@@ -309,9 +408,11 @@ def plot_sweep_set(plt, rows: list[dict], prefix: str, title_prefix: str, xlabel
     ]
 
 
-def plot_results(summary_csv: Path, output_dir: Path) -> tuple[list[Path], list[str]]:
+def plot_results(summary_csv: Path, output_dir: Path, runs_csv: Path | None = None) -> tuple[list[Path], list[str]]:
     plt = require_matplotlib()
     rows = load_summary(summary_csv)
+    if runs_csv is not None:
+        enrich_with_distance_metadata(rows, load_run_distance_metadata(runs_csv))
     output_dir.mkdir(parents=True, exist_ok=True)
     warnings: list[str] = []
     outputs: list[Path] = []
@@ -364,6 +465,30 @@ def plot_results(summary_csv: Path, output_dir: Path) -> tuple[list[Path], list[
                     "Link loss: total dB vs generated key rate",
                     "generated_key_rate",
                     output_dir / "link_loss_total_db_vs_generated_key_rate.png",
+                ),
+                plot_link_distance_metric(
+                    plt,
+                    link_rows,
+                    "sifted_key_length_mean",
+                    "Link distance: total km vs sifted key length",
+                    "sifted_key_length_mean",
+                    output_dir / "link_loss_total_distance_km_vs_sifted_key_length.png",
+                ),
+                plot_link_distance_metric(
+                    plt,
+                    link_rows,
+                    "lost_pair_count_mean",
+                    "Link distance: total km vs lost pair count",
+                    "lost_pair_count_mean",
+                    output_dir / "link_loss_total_distance_km_vs_lost_pair_count.png",
+                ),
+                plot_link_distance_metric(
+                    plt,
+                    link_rows,
+                    "generated_key_rate",
+                    "Link distance: total km vs generated key rate",
+                    "generated_key_rate",
+                    output_dir / "link_loss_total_distance_km_vs_generated_key_rate.png",
                 ),
                 plot_key_status_distribution(
                     plt,
@@ -488,7 +613,10 @@ def main() -> int:
     args = parse_args()
     if not Path(args.runs_csv).exists():
         print(f"Warning: runs CSV not found, continuing from summary only: {args.runs_csv}", file=sys.stderr)
-    outputs, warnings = plot_results(Path(args.summary_csv), Path(args.output_dir))
+        runs_csv = None
+    else:
+        runs_csv = Path(args.runs_csv)
+    outputs, warnings = plot_results(Path(args.summary_csv), Path(args.output_dir), runs_csv)
     for output in outputs:
         print(f"Saved plot: {output}")
     for warning in warnings:

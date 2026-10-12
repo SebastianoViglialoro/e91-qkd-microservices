@@ -1,0 +1,388 @@
+{
+  "runs": 360,
+  "scenarios": 36,
+  "repetitions": {
+    "10": 36
+  },
+  "security": {
+    "secure": 228,
+    "degraded": 91,
+    "insecure": 41
+  },
+  "keys": {
+    "generated": 218,
+    "insufficient_key_material": 10,
+    "discarded_degraded": 91,
+    "discarded": 41
+  },
+  "failed": 0,
+  "summary_differences": [],
+  "comparison_runs": 20,
+  "comparison_summary_differences": [],
+  "chapter5_table_checks": [
+    {
+      "scenario": "link_nominal_25_25",
+      "numeric_prefix_matches": true,
+      "expected": [
+        "2,8170",
+        "0,0569",
+        "0,0000",
+        "1753,1",
+        "2066,0",
+        "1,00"
+      ]
+    },
+    {
+      "scenario": "link_degraded_150_150",
+      "numeric_prefix_matches": true,
+      "expected": [
+        "2,8433",
+        "0,1025",
+        "0,0000",
+        "557,0",
+        "7502,2",
+        "1,00"
+      ]
+    },
+    {
+      "scenario": "link_critical_200_200",
+      "numeric_prefix_matches": true,
+      "expected": [
+        "2,7752",
+        "0,1084",
+        "0,0000",
+        "353,5",
+        "8416,5",
+        "1,00"
+      ]
+    },
+    {
+      "scenario": "link_critical_high_threshold",
+      "numeric_prefix_matches": true,
+      "expected": [
+        "2,8427",
+        "0,0696",
+        "0,0000",
+        "349,5",
+        "8410,9",
+        "0,00"
+      ]
+    },
+    {
+      "scenario": "noise_bit_flip_0.00",
+      "numeric_prefix_matches": true,
+      "expected": [
+        "2,8180",
+        "0,0252",
+        "0,0000",
+        "0,0000"
+      ]
+    },
+    {
+      "scenario": "noise_bit_flip_0.02",
+      "numeric_prefix_matches": true,
+      "expected": [
+        "2,6998",
+        "0,0443",
+        "0,0205",
+        "0,0020"
+      ]
+    },
+    {
+      "scenario": "noise_bit_flip_0.05",
+      "numeric_prefix_matches": true,
+      "expected": [
+        "2,5397",
+        "0,0318",
+        "0,0506",
+        "0,0041"
+      ]
+    },
+    {
+      "scenario": "noise_bit_flip_0.10",
+      "numeric_prefix_matches": true,
+      "expected": [
+        "2,2891",
+        "0,0376",
+        "0,0965",
+        "0,0067"
+      ]
+    },
+    {
+      "scenario": "noise_bit_flip_0.20",
+      "numeric_prefix_matches": true,
+      "expected": [
+        "1,6743",
+        "0,0632",
+        "0,1969",
+        "0,0073"
+      ]
+    },
+    {
+      "scenario": "noise_bit_flip_0.25",
+      "numeric_prefix_matches": true,
+      "expected": [
+        "1,3726",
+        "0,0514",
+        "0,2465",
+        "0,0116"
+      ]
+    },
+    {
+      "scenario": "noise_depolarizing_0.00",
+      "numeric_prefix_matches": true,
+      "expected": [
+        "2,8242",
+        "0,0619",
+        "0,0000",
+        "0,0000"
+      ]
+    },
+    {
+      "scenario": "noise_depolarizing_0.02",
+      "numeric_prefix_matches": true,
+      "expected": [
+        "2,7894",
+        "0,0564",
+        "0,0105",
+        "0,0019"
+      ]
+    },
+    {
+      "scenario": "noise_depolarizing_0.05",
+      "numeric_prefix_matches": true,
+      "expected": [
+        "2,6910",
+        "0,0475",
+        "0,0247",
+        "0,0038"
+      ]
+    },
+    {
+      "scenario": "noise_depolarizing_0.10",
+      "numeric_prefix_matches": true,
+      "expected": [
+        "2,5421",
+        "0,0508",
+        "0,0493",
+        "0,0053"
+      ]
+    },
+    {
+      "scenario": "noise_depolarizing_0.20",
+      "numeric_prefix_matches": true,
+      "expected": [
+        "2,2724",
+        "0,0469",
+        "0,1025",
+        "0,0056"
+      ]
+    },
+    {
+      "scenario": "noise_depolarizing_0.25",
+      "numeric_prefix_matches": true,
+      "expected": [
+        "2,1138",
+        "0,0455",
+        "0,1268",
+        "0,0044"
+      ]
+    },
+    {
+      "scenario": "eve_randomize_0.00",
+      "numeric_prefix_matches": true,
+      "expected": [
+        "2,8284",
+        "0,0279",
+        "0,0000",
+        "0,0000"
+      ]
+    },
+    {
+      "scenario": "eve_randomize_0.02",
+      "numeric_prefix_matches": true,
+      "expected": [
+        "2,8062",
+        "0,0442",
+        "0,0100",
+        "0,0021"
+      ]
+    },
+    {
+      "scenario": "eve_randomize_0.05",
+      "numeric_prefix_matches": true,
+      "expected": [
+        "2,6927",
+        "0,0428",
+        "0,0250",
+        "0,0035"
+      ]
+    },
+    {
+      "scenario": "eve_randomize_0.10",
+      "numeric_prefix_matches": true,
+      "expected": [
+        "2,5650",
+        "0,0451",
+        "0,0508",
+        "0,0032"
+      ]
+    },
+    {
+      "scenario": "eve_randomize_0.20",
+      "numeric_prefix_matches": true,
+      "expected": [
+        "2,2720",
+        "0,0471",
+        "0,1019",
+        "0,0074"
+      ]
+    },
+    {
+      "scenario": "eve_randomize_0.25",
+      "numeric_prefix_matches": true,
+      "expected": [
+        "2,1032",
+        "0,0686",
+        "0,1240",
+        "0,0060"
+      ]
+    },
+    {
+      "scenario": "eve_intercept_resend_0.00",
+      "numeric_prefix_matches": true,
+      "expected": [
+        "2,8431",
+        "0,0639",
+        "0,0000",
+        "0,0000"
+      ]
+    },
+    {
+      "scenario": "eve_intercept_resend_0.02",
+      "numeric_prefix_matches": true,
+      "expected": [
+        "2,7692",
+        "0,0356",
+        "0,0108",
+        "0,0027"
+      ]
+    },
+    {
+      "scenario": "eve_intercept_resend_0.05",
+      "numeric_prefix_matches": true,
+      "expected": [
+        "2,7035",
+        "0,0333",
+        "0,0258",
+        "0,0032"
+      ]
+    },
+    {
+      "scenario": "eve_intercept_resend_0.10",
+      "numeric_prefix_matches": true,
+      "expected": [
+        "2,5264",
+        "0,0456",
+        "0,0504",
+        "0,0044"
+      ]
+    },
+    {
+      "scenario": "eve_intercept_resend_0.20",
+      "numeric_prefix_matches": true,
+      "expected": [
+        "2,2959",
+        "0,0555",
+        "0,1008",
+        "0,0071"
+      ]
+    },
+    {
+      "scenario": "eve_intercept_resend_0.25",
+      "numeric_prefix_matches": true,
+      "expected": [
+        "2,1206",
+        "0,0398",
+        "0,1265",
+        "0,0089"
+      ]
+    },
+    {
+      "scenario": "combined_0.02_0.02",
+      "numeric_prefix_matches": true,
+      "expected": [
+        "2,6519",
+        "0,0421",
+        "0,0296",
+        "0,0028"
+      ]
+    },
+    {
+      "scenario": "combined_0.10_0.10",
+      "numeric_prefix_matches": true,
+      "expected": [
+        "2,0057",
+        "0,0548",
+        "0,1381",
+        "0,0080"
+      ]
+    },
+    {
+      "scenario": "combined_0.15_0.15",
+      "numeric_prefix_matches": true,
+      "expected": [
+        "1,6682",
+        "0,0633",
+        "0,2018",
+        "0,0101"
+      ]
+    },
+    {
+      "scenario": "link_noise_eve_low",
+      "numeric_prefix_matches": true,
+      "expected": [
+        "2,6671",
+        "0,1004",
+        "0,0306",
+        "0,0108"
+      ]
+    },
+    {
+      "scenario": "link_noise_eve_medium",
+      "numeric_prefix_matches": true,
+      "expected": [
+        "2,3604",
+        "0,0918",
+        "0,0729",
+        "0,0071"
+      ]
+    },
+    {
+      "scenario": "link_noise_eve_high",
+      "numeric_prefix_matches": true,
+      "expected": [
+        "2,0477",
+        "0,0955",
+        "0,1453",
+        "0,0235"
+      ]
+    }
+  ],
+  "timestamp_range": [
+    "2026-07-15T21:12:22.958372+00:00",
+    "2026-07-15T21:17:14.048178+00:00"
+  ],
+  "raw_key_invariant": true,
+  "partition_invariant": true,
+  "nonzero_qber_generated": 138,
+  "basis_mapping_in_pdf": false,
+  "technology_mentions": {
+    "FastAPI": 0,
+    "Pydantic": 0,
+    "Docker": 0,
+    "HTTPX": 0,
+    "pytest": 0,
+    "unittest": 0
+  }
+}
